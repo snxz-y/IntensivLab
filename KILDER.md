@@ -35,6 +35,29 @@ Status: alle fem faser ferdig. Oppføringer merket UVERIFISERT bør sjekkes mot 
 - Trykkstyrt steg integreres eksakt (eksponentielt) per tidssteg på 5 ms.
 - SPONT-trigging beregnes fra hvor mye pasienten «trekker» under PEEP; flowtrigger sammenlikner dette delt på R med innstilt L/min.
 
+## Gassutveksling i respiratorsimulatoren (core/physiology/gasExchange.js, core/sim/gasModel.js)
+
+Forenklet modell for SpO2 og PaCO2, brukt til situasjonene. Ikke ment som fysiologisk presis.
+
+| Nøkkel | Formel | Kilde |
+|---|---|---|
+| G1 | Alveolær ventilasjonsligning: PaCO2[mmHg] = 0,863 · VCO2[ml/min] / VA[L/min]; VA = (Vt − Vd) · f | West JB. *Respiratory Physiology: The Essentials* |
+| G2 | O2-dissosiasjonskurve: SO2 = 1 / (23400/(PO2³ + 150·PO2) + 1), PO2 i mmHg | Severinghaus JW. *J Appl Physiol* 1979;46:599–602 |
+| G3 | Shuntligning Qs/Qt = (CcO2 − CaO2)/(CcO2 − CvO2); O2-innhold = 1,34 · Hb · SO2 + 0,003 · PO2[mmHg] | Lumb AB. *Nunn's Applied Respiratory Physiology*, 8. utg.; West JB |
+| G4 | Alveolær gassligning (B9) | West JB |
+
+Modellvalg (UVERIFISERT): dødrom 2,2 ml/kg IBW; a–v O2-differanse 5 ml/dL; Hb 120 g/L; VCO2 200 ml/min;
+PEEP reduserer shunt lineært med pasientens «rekrutterbarhet» opp til PEEP 15; tidskonstanter PaCO2 180 s,
+alveolærgass 20 s (90 s ved apné), SpO2 30 s; PetCO2 = PaCO2 − 0,5 kPa. Profilverdier for shunt
+(normal 5 %, ARDS 30 %, obstruktiv 10 %, restriktiv 15 %) er valgt for undervisning.
+
+## Situasjoner (modules/respirator/scenarios.js)
+
+Hendelsenes effektstørrelser (f.eks. resistance × 6 ved biting, compliance × 0,4 ved trykkpneumothorax,
+shunt + 0,22 ved derekruttering) er pedagogiske valg, UVERIFISERT. De kliniske funnene i ledetrådene
+(ensidig respirasjonslyd ved tube i hovedbronkus, hypersonor perkusjon og halsvenestuvning ved
+trykkpneumothorax, rhonchi ved sekret) er standard klinisk undersøkelseslære.
+
 ## Blodgasstrener
 
 ### Formler (core/physiology/acidbase.js)

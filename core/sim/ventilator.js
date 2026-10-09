@@ -89,6 +89,14 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
   let backupActive = false;
   let lastBreathStart = 0;
   const hold = { requested: null, active: null, start: 0, released: false };
+  let disconnected = false;
+  // Ved frakobling står luftveien åpen mot atmosfæren uansett hva respiratoren gjør.
+  const openLung = {
+    stepFlow: (d, f, pm) => lung.stepPressure(d, 0, pm),
+    stepPressure: (d, pw, pm) => lung.stepPressure(d, 0, pm),
+    stepOccluded: (d, pm) => lung.stepPressure(d, 0, pm),
+  };
+  const L = () => (disconnected ? openLung : lung);
   const history = [];         // siste fullførte pust (for glidende gjennomsnitt)
   const listeners = new Set();
   let holdResult = null;
@@ -288,7 +296,7 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
     }
 
     if (phase === 'hold-exp') {
-      lung.stepOccluded(dt, pmus);
+      L().stepOccluded(dt, pmus);
       breath.holdTime = (breath.holdTime || 0) + dt;
       if (hold.released || t - hold.start >= MAX_HOLD) {
         holdResult = { type: 'exp', peepTotal: lung.state.paw, autoPeep: Math.max(0, lung.state.paw - s.peep), time: t };
@@ -300,9 +308,9 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
       }
     } else if (phase === 'exp') {
       const paw = s.peep;
-      lung.stepPressure(dt, paw, pmus);
+      L().stepPressure(dt, paw, pmus);
       // ekspirert volum og regresjon for RCexp
-      if (breath && lung.state.deltaVolume < 0) {
+      if (breath && !disconnected && lung.state.deltaVolume < 0) {
         breath.vte += -lung.state.deltaVolume;
         if (t - expStart > 0.05 && pmus === 0) {
           const x = lung.state.volume; // ml
@@ -312,18 +320,18 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
         }
       }
       // vis lite trykkfall ved pasientinnsats før trigging
-      lung.state.paw = paw - patientTriggerDisplayDrop(pmus);
+      if (!disconnected) lung.state.paw = paw - patientTriggerDisplayDrop(pmus);
     } else if (phase === 'insp') {
       const b = breath;
       const elapsed = t - b.start;
       if (b.mode === 'SCMV' && b.type !== 'backup') {
-        if (elapsed < b.flowTime - 1e-9 && b.vti < s.vt - 1e-9) {
+        if (elapsed < b.flowTime - 1e-9 && (disconnected || b.vti < s.vt - 1e-9)) {
           let flow = flowAtFraction(b.peakSetFlow, elapsed / b.flowTime, s.flowPattern);
           const remaining = s.vt - b.vti;
           if (flow * dt * 1000 > remaining) flow = remaining / (dt * 1000);
-          lung.stepFlow(dt, flow, pmus);
+          L().stepFlow(dt, flow, pmus);
         } else if (elapsed < b.tiSet - 1e-9) {
-          lung.stepOccluded(dt, pmus);
+          L().stepOccluded(dt, pmus);
         } else {
           endInspiration();
           return step();
@@ -332,7 +340,7 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
         // trykkstyrt (PCV+, SPONT, backup)
         const ramp = b.rampTime > 0 ? Math.min(1, elapsed / b.rampTime) : 1;
         const target = s.peep + (b.ptarget - s.peep) * ramp;
-        lung.stepPressure(dt, target, pmus);
+        L().stepPressure(dt, target, pmus);
         const flow = lung.state.flow;
         if (flow > b.peakFlow) b.peakFlow = flow;
         let cycle = false;
@@ -348,9 +356,9 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
           return step();
         }
       }
-      if (lung.state.deltaVolume > 0) b.vti += lung.state.deltaVolume;
+      if (!disconnected && lung.state.deltaVolume > 0) b.vti += lung.state.deltaVolume;
     } else if (phase === 'hold-insp') {
-      lung.stepOccluded(dt, pmus);
+      L().stepOccluded(dt, pmus);
       breath.holdTime = (breath.holdTime || 0) + dt;
       if (hold.released || t - hold.start >= MAX_HOLD) {
         holdResult = { type: 'insp', pplat: lung.state.paw, time: t };
@@ -391,6 +399,8 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
     get lastBreath() { return lastBreath; },
     get dt() { return dt; },
     get backupActive() { return backupActive; },
+    get disconnected() { return disconnected; },
+    setDisconnected(v) { disconnected = !!v; },
 
     setSettings(partial) {
       const prevMode = s.mode;

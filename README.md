@@ -25,7 +25,14 @@ og innstillingene som knapper nederst. Trykk på en innstilling for å endre den
 - Verktøy: inspiratorisk og ekspiratorisk hold (hold inne knappen), hastighet, nullstilling.
 - Oppgaver: før hver endring må du forutsi hva som skjer med en måleverdi. Fasit
   hentes ved å simulere endringen til steady state i en kopi av respiratoren.
-- Fremdrift (løste oppgaver, forutsigelser) lagres lokalt i nettleseren.
+- Situasjoner: «falske pasienter» der noe skjer underveis (snuing med desaturasjon,
+  biting på tuben, sekret, frakobling, pneumothorax, bronkospasme, asynkroni). Du
+  undersøker (lytt, se, sjekk krets) og setter inn tiltak. Riktig tiltak løser
+  situasjonen; feil tiltak logges og forklares.
+- SpO2 og PetCO2 kommer fra en forenklet gassutvekslingsmodell (shuntligning,
+  Severinghaus' dissosiasjonskurve, alveolær ventilasjonsligning). Shunt og
+  rekrutterbarhet kan justeres under «Pasient».
+- Fremdrift (løste oppgaver, forutsigelser, situasjoner) lagres lokalt i nettleseren.
 
 ## Blodgasstreneren
 

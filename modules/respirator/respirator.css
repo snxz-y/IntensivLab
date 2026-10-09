@@ -50,10 +50,10 @@
 .hc-mmp { grid-area: mmp; display: flex; flex-direction: column; gap: 4px; overflow: auto; }
 .hc-mmp .mmp {
   background: var(--hc-panel); border: 1px solid var(--hc-line); border-radius: 6px; padding: 4px 8px; flex: 1;
-  display: flex; flex-direction: column; justify-content: center; min-height: 54px;
+  display: flex; flex-direction: column; justify-content: center; min-height: 46px;
 }
 .mmp .mmp-label { font-size: 0.72rem; color: var(--hc-dim); white-space: nowrap; display: flex; justify-content: space-between; }
-.mmp .mmp-value { font-family: var(--mono); font-size: 1.45rem; font-weight: 700; line-height: 1.15; }
+.mmp .mmp-value { font-family: var(--mono); font-size: 1.35rem; font-weight: 700; line-height: 1.1; }
 .mmp .mmp-unit { font-size: 0.68rem; color: var(--hc-dim); }
 .mmp.alarm .mmp-value { color: var(--hc-alarm); }
 .mmp.measured .mmp-label::after { content: '✓ målt'; color: var(--hc-ok); font-size: 0.65rem; }
