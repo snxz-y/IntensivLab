@@ -32,6 +32,8 @@ og innstillingene som knapper nederst. Trykk på en innstilling for å endre den
 - SpO2 og PetCO2 kommer fra en forenklet gassutvekslingsmodell (shuntligning,
   Severinghaus' dissosiasjonskurve, alveolær ventilasjonsligning). Shunt og
   rekrutterbarhet kan justeres under «Pasient».
+- Lyd («Lyd»-knappen): pustelyd som følger flowkurven, alarmtoner i to prioriteter
+  med «Demp 2 min», og valgfri pulstone som følger SpO2. Alt syntetiseres med Web Audio.
 - Fremdrift (løste oppgaver, forutsigelser, situasjoner) lagres lokalt i nettleseren.
 
 ## Blodgasstreneren

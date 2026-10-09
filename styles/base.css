@@ -25,6 +25,7 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; height: 100%; }
+html { background: var(--bg); }
 body {
   background: var(--bg);
   color: var(--fg);
@@ -51,10 +52,15 @@ button, input, select { font: inherit; color: inherit; }
 .topbar {
   display: flex; align-items: center; gap: var(--gap); flex-wrap: wrap;
   padding: 10px 16px;
-  padding-top: max(10px, env(safe-area-inset-top));
+  padding-top: calc(10px + env(safe-area-inset-top, 0px));
   background: var(--bg-elev);
   border-bottom: 1px solid var(--border);
   position: sticky; top: 0; z-index: 10;
+}
+/* Dekker området under iOS-statuslinjen med samme farge som topplinjen, så ingenting blir uskarpt der. */
+.topbar::before {
+  content: ''; position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top, 0px);
+  background: var(--bg-elev); z-index: 11;
 }
 .brand { font-weight: 750; font-size: 1.15rem; letter-spacing: 0.01em; color: var(--fg); }
 .brand:hover { text-decoration: none; }
@@ -67,9 +73,10 @@ button, input, select { font: inherit; color: inherit; }
 .nav a.active { color: var(--fg); background: var(--bg-elev-2); border-color: var(--border); }
 
 .disclaimer {
-  display: block; text-align: center; font-size: 0.85rem; font-weight: 600;
-  padding: 6px 12px; background: #3a2d10; color: var(--warn);
-  border-bottom: 1px solid #5a4719;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  font-size: 0.82rem; font-weight: 700; letter-spacing: 0.02em;
+  padding: 5px 12px; background: var(--warn); color: #1a1200;
+  border-bottom: 1px solid #b8862f;
 }
 
 .main { flex: 1; padding: 16px; max-width: 1400px; width: 100%; margin: 0 auto; }

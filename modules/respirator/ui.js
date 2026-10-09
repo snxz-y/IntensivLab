@@ -6,7 +6,7 @@
  *   som legger seg over kurveområdet.
  */
 import { h, clear } from '../../core/ui/dom.js';
-import { slider, select, segmented, button } from '../../core/ui/controls.js';
+import { slider, select, segmented, button, toggle } from '../../core/ui/controls.js';
 import { toast } from '../../core/ui/toast.js';
 import { fmt } from '../../core/units.js';
 import { createScope } from '../../core/charts/scope.js';
@@ -17,6 +17,7 @@ import { PROFILES, getProfile } from './profiles.js';
 import { TASKS, taskSetup, evaluateTask, predictionFor, MEASURES, settingLabel } from './tasks.js';
 import { createGasModel } from '../../core/sim/gasModel.js';
 import { SITUATIONS, ACTIONS, createSituation, gasForProfile } from './scenarios.js';
+import { createVentAudio } from '../../core/audio/ventSounds.js';
 
 const IE_OPTIONS = [
   { value: '2:1', label: '2:1', ie: { i: 2, e: 1 } },
@@ -70,6 +71,9 @@ export function mountRespirator(container, ctx) {
     patient: saved?.patient ?? structuredClone(getProfile(profileId).patient),
   });
   const gas = createGasModel(saved?.gas ?? gasForProfile(profileId));
+  const audio = createVentAudio();
+  audio.setOptions(storage.get('respirator:audio', {}));
+  const saveAudio = () => storage.set('respirator:audio', audio.options);
   const ui = {
     running: true, speed: 1, window: null, showLoops: window.innerWidth > 900, profileId,
     pmax: 40, lastHoldTime: null, raf: 0, acc: 0, lastNow: null,
@@ -167,9 +171,14 @@ export function mountRespirator(container, ctx) {
     if (m.expMinVol !== null && m.expMinVol < 2 && m.fTotal > 0) alarms.push(`Lavt minuttvolum: ${fmt(m.expMinVol, 1)} L/min`);
     if (vent.disconnected || (m.ppeak !== null && m.ppeak < m.peep + 2 && m.breathType && vent.settings.mode !== 'SPONT')) alarms.push('Lavt trykk / frakobling');
     if (gas.state.spo2 < 0.90) alarms.push(`Lav SpO2: ${fmt(gas.state.spo2 * 100, 0)} %`);
+    const high = alarms.some((a) => /Høyt trykk|frakobling|Lav SpO2|Apné/.test(a));
+    audio.setAlarm(alarms.length ? (high ? 'high' : 'medium') : null);
     statusBox.className = `hc-status ${alarms.length ? 'alarm' : ''}`;
     clear(statusBox);
-    if (alarms.length) statusBox.append(h('span', {}, '⚠ ' + alarms.join(' · ')));
+    if (alarms.length) {
+      statusBox.append(h('span', {}, '⚠ ' + alarms.join(' · ')));
+      if (audio.enabled) statusBox.append(button(audio.silenced ? 'Dempet' : 'Demp 2 min', { small: true, onClick: () => { audio.silence(120); renderStatus(); } }));
+    }
     else if (ui.situation) {
       statusBox.append(h('span', { class: 'hc-task-chip' }, h('b', {}, 'Situasjon:'), ui.situation.def.title,
         button('Vis', { small: true, onClick: () => openWindow('situations') })));
@@ -406,6 +415,15 @@ export function mountRespirator(container, ctx) {
       else if (r.type === 'insp') result.append(h('b', {}, `Pplat målt: ${fmt(r.pplat, 1)} cmH2O`), h('div', { class: 'muted' }, `Ppeak − Pplat = ${fmt(vent.measurements.ppeak - r.pplat, 1)} cmH2O (resistiv del). Pplat − PEEPtot = ${fmt(r.pplat - vent.measurements.peepTotal, 1)} cmH2O (drivtrykk, elastisk del).`));
       else result.append(h('b', {}, `PEEP totalt: ${fmt(r.peepTotal, 1)} cmH2O → AutoPEEP ${fmt(r.autoPeep, 1)} cmH2O`), h('div', { class: 'muted' }, `Innstilt PEEP ${vent.settings.peep}. Ekspirasjonsflow ved slutten av TE forteller det samme: når den ikke er null, er det luft igjen.`));
     };
+    body.append(h('div', { class: 'hc-section' }, 'Lyd'));
+    const o = audio.options;
+    const setO = (partial) => { audio.setOptions(partial); saveAudio(); };
+    body.append(h('p', { class: 'faint', style: { fontSize: '0.85rem' } }, audio.enabled ? 'Lyd er på.' : 'Slå på lyd med «Lyd»-knappen til høyre (nettleseren krever et trykk først).'));
+    body.append(slider({ label: 'Volum', unit: '', min: 0, max: 1, step: 0.05, value: o.volume, onChange: (v) => setO({ volume: v }) }).el);
+    body.append(h('div', { class: 'row' },
+      toggle({ label: 'Pustelyd (følger flow)', checked: o.breath, onChange: (v) => setO({ breath: v }) }).el,
+      toggle({ label: 'Alarmer', checked: o.alarms, onChange: (v) => setO({ alarms: v }) }).el,
+      toggle({ label: 'Pulstone (SpO2)', checked: o.pulse, onChange: (v) => setO({ pulse: v }) }).el));
     body.append(h('div', { class: 'hc-section' }, 'Simulering'));
     const speedSeg = segmented({ ariaLabel: 'Hastighet', value: String(ui.speed), options: [{ value: '1', label: '1×' }, { value: '2', label: '2×' }, { value: '4', label: '4×' }], onChange: (v) => { ui.speed = Number(v); renderClock(); } });
     body.append(h('div', { class: 'row' }, h('span', { class: 'muted' }, 'Hastighet'), speedSeg.el));
@@ -628,7 +646,14 @@ export function mountRespirator(container, ctx) {
   const sideBtn = (win, ico, label) => h('button', { type: 'button', class: 'hc-btn', dataset: { win }, onClick: () => openWindow(win) }, h('span', { class: 'ico' }, ico), label);
   const loopsBtn = h('button', { type: 'button', class: `hc-btn ${ui.showLoops ? 'active' : ''}`, onClick: () => { ui.showLoops = !ui.showLoops; loopsBtn.classList.toggle('active', ui.showLoops); applyLoopsLayout(); } }, h('span', { class: 'ico' }, '∞'), 'Sløyfer');
   const runBtn = h('button', { type: 'button', class: 'hc-btn', onClick: () => { ui.running = !ui.running; runBtn.replaceChildren(h('span', { class: 'ico' }, ui.running ? '⏸' : '▶'), ui.running ? 'Pause' : 'Start'); renderStatus(); } }, h('span', { class: 'ico' }, '⏸'), 'Pause');
-  side.append(sideBtn('monitor', '📈', 'Monitorering'), sideBtn('controls', '⚙', 'Kontroller'), sideBtn('patient', '🫁', 'Pasient'), sideBtn('tools', '🛠', 'Verktøy'), sideBtn('tasks', '🎯', 'Oppgaver'), sideBtn('situations', '🚨', 'Situasjoner'), loopsBtn, runBtn);
+  const soundBtn = h('button', { type: 'button', class: 'hc-btn', onClick: async () => {
+    if (audio.enabled) { audio.disable(); }
+    else if (!(await audio.enable())) { toast('Nettleseren støtter ikke lyd her.', { kind: 'warn' }); return; }
+    soundBtn.classList.toggle('active', audio.enabled);
+    soundBtn.replaceChildren(h('span', { class: 'ico' }, audio.enabled ? '🔊' : '🔇'), 'Lyd');
+    renderStatus();
+  } }, h('span', { class: 'ico' }, '🔇'), 'Lyd');
+  side.append(sideBtn('monitor', '📈', 'Monitorering'), sideBtn('controls', '⚙', 'Kontroller'), sideBtn('patient', '🫁', 'Pasient'), sideBtn('tools', '🛠', 'Verktøy'), sideBtn('tasks', '🎯', 'Oppgaver'), sideBtn('situations', '🚨', 'Situasjoner'), loopsBtn, soundBtn, runBtn);
   function applyLoopsLayout() {
     waves.classList.toggle('with-loops', ui.showLoops);
     loops.style.display = ui.showLoops ? '' : 'none';
@@ -669,7 +694,8 @@ export function mountRespirator(container, ctx) {
       while (ui.acc >= dt && n < 400) { onSample(vent.step()); ui.acc -= dt; n++; }
       if (n >= 400) ui.acc = 0;
       gas.step(n * dt);
-    }
+      audio.setBreath(vent.disconnected ? 0 : vent.lung.state.flow);
+    } else audio.setBreath(0);
     for (const s of Object.values(sc)) s.draw();
     if (ui.showLoops) {
       pvLoop.setData(loopCur.pv, loopPrev.pv); pvLoop.draw();
@@ -688,6 +714,7 @@ export function mountRespirator(container, ctx) {
       }
       if (ui.situation) { const el = document.getElementById('sit-time'); if (el) el.textContent = `${fmt(Math.max(0, vent.time - ui.situation.sit.state.tStart), 0)} s`; }
       if (sec % 2 === 0) renderStatus();
+      audio.setPulse(gas.state.spo2, 80);
     }
     ui.raf = requestAnimationFrame(frame);
   }
@@ -742,6 +769,7 @@ export function mountRespirator(container, ctx) {
 
   return () => {
     cancelAnimationFrame(ui.raf);
+    audio.destroy();
     offBreath();
     for (const s of Object.values(sc)) s.destroy();
     pvLoop.destroy(); fvLoop.destroy();

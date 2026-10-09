@@ -58,6 +58,13 @@ shunt + 0,22 ved derekruttering) er pedagogiske valg, UVERIFISERT. De kliniske f
 (ensidig respirasjonslyd ved tube i hovedbronkus, hypersonor perkusjon og halsvenestuvning ved
 trykkpneumothorax, rhonchi ved sekret) er standard klinisk undersøkelseslære.
 
+## Lyd (core/audio/ventSounds.js)
+
+Alarmmønstrene (høy prioritet: 3 + 2 pulser i 880 Hz hvert 2,6 s; middels: 3 pulser i 660 Hz hvert 5 s)
+er inspirert av IEC 60601-1-8, men er UVERIFISERT som gjengivelse av Hamiltons faktiske alarmlyder.
+Pustelyden er filtrert støy styrt av flow (ren syntese). Pulstonen følger pulsoksymeterpraksis der
+tonehøyden faller med metningen; tallene (880 Hz ved 100 %, 520 Hz ved 80 %) er valgt, ikke kildebelagt.
+
 ## Blodgasstrener
 
 ### Formler (core/physiology/acidbase.js)
