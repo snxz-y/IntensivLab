@@ -17,6 +17,7 @@ import { createLoop } from '../../core/charts/loop.js';
 import { createVentilator, MODES, DEFAULT_SETTINGS } from '../../core/sim/ventilator.js';
 import { timeConstant, idealBodyWeightHamilton } from '../../core/physiology/respiratory.js';
 import { createGasModel } from '../../core/sim/gasModel.js';
+import { anatomicDeadspace } from '../../core/physiology/gasExchange.js';
 import { createVentAudio } from '../../core/audio/ventSounds.js';
 import { PROFILES, getProfile } from './profiles.js';
 import { TASKS, CATEGORIES, taskSetup, evaluateTask, predictionFor, MEASURES, settingLabel } from './tasks.js';
@@ -308,7 +309,7 @@ export function mountRespirator(container, ctx) {
       t.el.className = cls;
       if (t.def.limits) { const [hi, lo] = t.def.limits; t.lim.replaceChildren(h('span', {}, hi ? String(limitValue(hi)) : ''), h('span', {}, lo ? String(limitValue(lo)) : '')); }
     }
-    monitorRefresh?.(m);
+    monitorRefresh?.();
   }
   let monitorRefresh = null;
 
@@ -433,6 +434,8 @@ export function mountRespirator(container, ctx) {
     const win = {
       head, side, main, foot,
       tabs(list, active, onPick) { side.replaceChildren(...list.map(([id, label]) => h('button', { type: 'button', class: id === active ? 'active' : '', onClick: () => onPick(id) }, label))); side.style.display = ''; },
+      /** Faner øverst i vinduet (som Monitorering på C6: ✕ til venstre, faner i raden). */
+      topTabs(list, active, onPick) { head.classList.add('toptabs'); head.querySelector('h2').replaceChildren(...list.map(([id, label]) => h('button', { type: 'button', class: id === active ? 'active' : '', onClick: () => onPick(id) }, label))); },
     };
     side.style.display = 'none';
     ({ alarms: renderAlarms, controls: renderControls, monitor: renderMonitor, graphics: renderGraphics, tools: renderTools, events: renderEvents, system: renderSystem, modes: renderModes, standby: renderStandby })[name](win, focusKey === true ? null : focusKey);
@@ -569,27 +572,56 @@ export function mountRespirator(container, ctx) {
     win.foot.append(auto, h('span', { class: 'faint', style: { fontSize: '0.78rem' } }, 'Auto setter grensene rundt gjeldende måleverdier (som på C6).'));
   }
 
-  // ---------- Monitorering ----------
+  // ---------- Monitorering (som C6: faner General, CO2, SpO2, Pes; stort tall med navn og enhet ved siden av) ----------
+  const flowPeaks = { insp: 0, exp: 0, curInsp: 0, curExp: 0, breath: null };
+  function monitorValues() {
+    const m = withGas(vent.measurements), s = vent.settings;
+    const ibw = m.ibw ?? idealBodyWeightHamilton(vent.patient.height, vent.patient.sex);
+    const vd = anatomicDeadspace(ibw);
+    const vtalv = m.vte != null ? Math.max(0, m.vte - vd) : null;
+    const f = m.fTotal ?? 0;
+    const spont = m.fSpont ?? 0;
+    const vteSpont = spont > 0 && m.breathType === 'spont' ? m.vte : 0;
+    const mvSpont = m.expMinVol != null && f > 0 ? (m.expMinVol * spont) / f : 0;
+    const petKpa = vent.disconnected ? 0 : gas.petco2;
+    const none = null;
+    return {
+      general: [
+        [['Ppeak', m.ppeak, 'cmH2O', 0], ['Pplateau', m.pplat, 'cmH2O', 0], ['ΔP', m.drivingPressure, 'cmH2O', 0], ['Pmean', m.pmean, 'cmH2O', 0], ['PEEP/CPAP', m.peepTotal, 'cmH2O', 0], ['AutoPEEP', m.autoPeep, 'cmH2O', 1]],
+        [['Insp Flow', flowPeaks.insp, 'l/min', 1], ['Exp Flow', flowPeaks.exp, 'l/min', 1], ['VTI', m.vti, 'ml', 0], ['VTE', m.vte, 'ml', 0], ['VTESpont', vteSpont, 'ml', 0], ['ExpMinVol', m.expMinVol, 'l/min', 1], ['MVSpont', mvSpont, 'l/min', 2]],
+        [['fTotal', m.fTotal, 'b/min', 0], ['fSpont', m.fSpont, 'b/min', 0], ['TI', m.ti, 's', 1], ['TE', m.te, 's', 1], ['I:E', m.ieText, '', null], ['Vt/IBW', m.vtPerKg, 'ml/kg', 1]],
+        [['Rinsp', m.rinsp, 'cmH2O/l/s', 0], ['Cstat', m.cstat, 'ml/cmH2O', 1], ['RCexp', m.rcexp, 's', 2], ['VLeak', vent.leak * 100, '%', 0], ['MVLeak', m.expMinVol != null ? (m.expMinVol * vent.leak) / Math.max(0.01, 1 - vent.leak) : null, 'l/min', 2], ['Oxygen', s.fio2, '%', 0]],
+        [['Pcuff', none, 'cmH2O', 0], ['T humidifier', none, 'mA', 0], ['P0.1', none, 'cmH2O', 0], ['PTP', none, 'cmH2O*s', 0]],
+      ],
+      co2: [
+        [['VDaw', vd, 'ml', 0], ['slopeCO2', none, '%CO2/l', 1], ['Vtalv', vtalv, 'ml', 0], ["V'alv", vtalv != null ? (vtalv * f) / 1000 : null, 'l/min', 1], ['VDaw/VTE', m.vte ? (100 * vd) / m.vte : null, '%', 0], ['PetCO2', petKpa, 'kPa', 1], ['FetCO2', (100 * petKpa) / 95, '%', 1]],
+        [['VeCO2', f > 0 ? gas.params.vco2 / f : null, 'ml', 1], ['ViCO2', 0, 'ml', 1], ["V'CO2", vent.disconnected ? 0 : gas.params.vco2, 'ml/min', 0]],
+      ],
+      spo2: [
+        [['SpO2', gas.state.spo2 * 100, '%', 0], ['SpO2/FiO2', (gas.state.spo2 * 100) / (s.fio2 / 100) / 100, '', 1], ['Pulse', currentVitals().hr, '1/min', 0]],
+      ],
+      pes: [
+        [['Pes max', none, 'cmH2O', 0], ['Pes plateau', none, 'cmH2O', 0], ['Pes min', none, 'cmH2O', 0], ['Pes P0.1', none, 'cmH2O', 0], ['Pes PTP', none, 'cmH2O', 0]],
+        [['Ptrans I', none, 'cmH2O', 0], ['Ptrans E', none, 'cmH2O', 0]],
+      ],
+    };
+  }
   function renderMonitor(win) {
     let tab = 'general';
-    const SETS = {
-      general: ['ppeak', 'pmean', 'peepTotal', 'pplat', 'autoPeep', 'drivingPressure', 'vti', 'vte', 'vtPerKg', 'expMinVol', 'fTotal', 'fSpont', 'spo2', 'petco2'],
-      more: ['cstat', 'rinsp', 'rcexp', 'ti', 'te', 'ieText', 'pinsp', 'ibw', 'paco2', 'pao2'],
-    };
-    const grid = h('div', { class: 'mon-grid' });
-    const extra = h('div', { class: 'muted', style: { marginTop: '10px', fontSize: '0.85rem' } });
+    const panel = h('div', { class: 'mon-panel' });
     const render = () => {
-      win.tabs([['general', 'Generelt'], ['more', 'Mer']], tab, (id) => { tab = id; render(); });
-      const tiles = {};
-      grid.replaceChildren(...SETS[tab].map((k) => { const d = MMP_ALL.find((x) => x.key === k); const val = h('div', { class: 'mmp-value' }, '–'); tiles[k] = { val, d }; return h('div', { class: 'mmp' }, h('div', { class: 'mmp-main' }, val, h('div', { class: 'mmp-label' }, d.label, h('span', { class: 'mmp-unit' }, d.unit)))); }));
-      monitorRefresh = (m) => {
-        for (const [k, t] of Object.entries(tiles)) t.val.textContent = t.d.d === null ? (m[k] ?? '–') : fmt(m[k], t.d.d);
-        extra.textContent = `Siste pust: ${({ mandatory: 'maskinstyrt', triggered: 'pasienttrigget (mandatorisk)', spont: 'spontan (trykkstøtte)', backup: 'backup' })[m.breathType] ?? '–'}${m.cycleReason ? ` · syklet av ${m.cycleReason}` : ''}. Pplateau ved hold: ${fmt(m.pplatMeasured, 1)} · AutoPEEP ved hold: ${fmt(m.autoPeepMeasured, 1)}.`;
+      win.topTabs([['general', 'General'], ['co2', 'CO2'], ['spo2', 'SpO2'], ['pes', 'Pes']], tab, (id) => { tab = id; render(); });
+      monitorRefresh = () => {
+        const cols = monitorValues()[tab];
+        panel.replaceChildren(...cols.map((col) => h('div', { class: 'mon-col' }, ...col.map(([label, v, unit, d]) => h('div', { class: 'mon-item' },
+          h('span', { class: 'mon-val' }, v == null || (typeof v === 'number' && !Number.isFinite(v)) ? '---' : d === null ? String(v) : fmt(v, d)),
+          h('span', { class: 'mon-lbl' }, label, h('small', {}, unit)))))));
       };
-      monitorRefresh(withGas(vent.measurements));
+      monitorRefresh();
     };
     render();
-    win.main.append(grid, extra);
+    win.main.append(panel);
+    win.main.classList.add('mon-main');
   }
 
   // ---------- Grafikk ----------
@@ -939,6 +971,10 @@ export function mountRespirator(container, ctx) {
   let lastSample = null;
   function onSample(s) {
     lastSample = s;
+    if (vent.breath !== flowPeaks.breath) { flowPeaks.breath = vent.breath; flowPeaks.insp = flowPeaks.curInsp; flowPeaks.exp = flowPeaks.curExp; flowPeaks.curInsp = 0; flowPeaks.curExp = 0; }
+    const fl = s.flow * 60;
+    if (fl > flowPeaks.curInsp) flowPeaks.curInsp = fl;
+    if (-fl > flowPeaks.curExp) flowPeaks.curExp = -fl;
     if (!ui.frozen) {
       sc.paw.push(s.t, s.paw); sc.flow.push(s.t, s.flow * 60); sc.vol.push(s.t, s.volume);
       if (vent.breath !== loopBreathRef) { loopBreathRef = vent.breath; loopPrev = loopCur; loopCur = { pv: [], fv: [] }; }
