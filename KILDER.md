@@ -102,7 +102,7 @@ tonehøyden faller med metningen; tallene (880 Hz ved 100 %, 520 Hz ved 80 %) er
 | Hva | Verdi brukt | Merknad |
 |---|---|---|
 | K4: IBW-formel | menn 0,9079·høyde − 88,022; kvinner 0,9049·høyde − 92,006 | Jeg mener dette står i Hamilton-C6/G5-brukerhåndbok (avsnitt «IBW»). Avviker < 1,5 kg fra ARDSNet (K3). |
-| Standardinnstillinger voksen | Vt 500, f 15, PEEP 5, O2 40 %, I:E 1:2, Pcontrol 15, Psupport 10, Pramp 50 ms, ETS 25 %, flowtrigger 2 L/min, TIP 0 %, TI max 2,0 s, apnétid 20 s, backup f 12 / Pcontrol 15 | Ment å ligne Hamiltons voksenstandard. |
+| Standardinnstillinger voksen | Vt 8 ml/kg IBW (avrundet til 10 ml), f 15, PEEP 5, O2 40 %, I:E 1:2, Pcontrol 15, Psupport 10, Pramp 50 ms, ETS 25 %, flowtrigger 2 L/min, TIP 0 %, TI max 2,0 s, apnétid 20 s, backup f 12 / Pcontrol 15 | Ment å ligne Hamiltons voksenstandard. |
 | TIP (pause) | % av TI | Usikker på om Hamilton regner % av TI eller av syklustid. |
 | Maks holdvarighet | 10 s | Hamilton avslutter insp./eksp. hold automatisk; usikker på grensen. |
 | Deselererende flow | lineært til 50 % av toppflow | Hamilton tilbyr flere mønstre; 50 %-varianten er valgt. |

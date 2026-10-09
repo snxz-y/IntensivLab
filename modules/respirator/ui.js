@@ -62,15 +62,23 @@ const MMP_ALL = [
   { key: 'ibw', label: 'IBW', unit: 'kg', d: 1 },
 ];
 
+/** Standard Vt ved oppstart: 8 ml/kg IBW, avrundet til 10 ml (Hamilton setter Vt fra IBW; UVERIFISERT faktor). */
+function startupVt(patient) {
+  const ibw = idealBodyWeightHamilton(patient.height, patient.sex);
+  return Math.max(200, Math.round((8 * ibw) / 10) * 10);
+}
+
 export function mountRespirator(container, ctx) {
   const { storage } = ctx;
-  const saved = storage.get('respirator:state', null);
-  const profileId = saved?.profileId ?? 'normal';
+  // Respiratoren starter alltid med standardoppsett, som en Hamilton etter oppstart:
+  // normal pasientprofil, (S)CMV med Vt satt ut fra IBW. Ingen innstillinger hentes fra lagring.
+  const profileId = 'normal';
+  const startPatient = structuredClone(getProfile(profileId).patient);
   const vent = createVentilator({
-    settings: saved?.settings ?? {},
-    patient: saved?.patient ?? structuredClone(getProfile(profileId).patient),
+    settings: { vt: startupVt(startPatient) },
+    patient: startPatient,
   });
-  const gas = createGasModel(saved?.gas ?? gasForProfile(profileId));
+  const gas = createGasModel(gasForProfile(profileId));
   const audio = createVentAudio();
   audio.setOptions(storage.get('respirator:audio', {}));
   const saveAudio = () => storage.set('respirator:audio', audio.options);
@@ -81,9 +89,10 @@ export function mountRespirator(container, ctx) {
     situation: null, // { sit, def, startedAt, logEl }
     lastBreathTime: 0,
   };
+  storage.remove('respirator:state'); // eldre versjoner lagret innstillinger her
   const progress = storage.get('respirator:progress', { tasks: {}, predictions: { correct: 0, total: 0 }, situations: {} });
   progress.situations ??= {};
-  const save = () => storage.set('respirator:state', { settings: vent.settings, patient: vent.patient, profileId: ui.profileId, gas: { ...gas.params } });
+  const save = () => {}; // innstillinger lagres ikke: respiratoren starter alltid i standardoppsett
   const saveProgress = () => storage.set('respirator:progress', progress);
 
   // ---------- DOM-skjelett ----------
@@ -428,7 +437,7 @@ export function mountRespirator(container, ctx) {
     const speedSeg = segmented({ ariaLabel: 'Hastighet', value: String(ui.speed), options: [{ value: '1', label: '1×' }, { value: '2', label: '2×' }, { value: '4', label: '4×' }], onChange: (v) => { ui.speed = Number(v); renderClock(); } });
     body.append(h('div', { class: 'row' }, h('span', { class: 'muted' }, 'Hastighet'), speedSeg.el));
     body.append(h('div', { class: 'row', style: { marginTop: '8px' } },
-      button('Nullstill innstillinger', { onClick: () => { vent.setSettings(structuredClone(DEFAULT_SETTINGS)); vent.reset(); save(); refreshAll(); toast('Innstillinger nullstilt'); } }),
+      button('Nullstill innstillinger', { onClick: () => { vent.setSettings({ ...structuredClone(DEFAULT_SETTINGS), vt: startupVt(vent.patient) }); vent.reset(); refreshAll(); toast('Innstillinger nullstilt'); } }),
       button('Slett lagret fremdrift', { variant: 'danger', onClick: () => { storage.remove('respirator:progress'); progress.tasks = {}; progress.predictions = { correct: 0, total: 0 }; toast('Fremdrift slettet'); } })));
   }
   let toolsRefresh = null;
