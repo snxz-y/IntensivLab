@@ -125,7 +125,7 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
     const mode = s.mode;
     const ti = tiSetting();
     const b = {
-      type, mode, start: t, vStart: lung.state.volume,
+      type, mode, start: t, vStart: lung.state.volume, peepSet: s.peep,
       ti: null, te: null, tcycle: null,
       ppeak: -Infinity, pawInt: 0, vti: 0, vte: 0,
       endInspPalv: null, endInspFlow: null, endInspPaw: null, endExpPalv: null,
@@ -195,16 +195,16 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
 
   function updateMeasurements(b) {
     const m = measurements;
-    const peepTotal = Math.max(s.peep, b.endExpPalv);
+    const peepTotal = Math.max(b.peepSet, b.endExpPalv);
     m.mode = s.mode;
     m.breathType = b.type;
     m.cycleReason = b.cycleReason;
     m.ppeak = b.ppeak;
     m.pplat = b.endInspPalv;
     m.pmean = b.pawInt / b.tcycle;
-    m.peep = s.peep;
+    m.peep = b.peepSet;
     m.peepTotal = peepTotal;
-    m.autoPeep = Math.max(0, peepTotal - s.peep);
+    m.autoPeep = Math.max(0, peepTotal - b.peepSet);
     m.vti = b.vti;
     m.vte = b.vte;
     m.ti = b.ti;

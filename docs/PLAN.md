@@ -1,6 +1,6 @@
 # IntensivLab – plan (v1)
 
-Status: godkjent 2026-10-09. Valg: Hamilton-konvensjoner i respiratoren, anion gap uten kalium.
+Status: godkjent 2026-10-09. Fase 1–3 ferdig. Valg: Hamilton-konvensjoner i respiratoren, anion gap uten kalium.
 
 ## Hamilton-konvensjoner (brukes i respiratormodulen)
 - Modusnavn: (S)CMV = volumkontroll, PCV+ = trykkontroll, SPONT = trykkstøtte.

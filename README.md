@@ -11,8 +11,21 @@ Nettbasert læringsplattform for intensivsykepleie, bygd som statisk app
 
 | Modul | Status |
 |---|---|
-| Respiratorsimulator (`#/respirator`) | modell og tester ferdig (fase 2), UI i fase 3 |
+| Respiratorsimulator (`#/respirator`) | ferdig (fase 3) |
 | Blodgasstrener (`#/blodgass`) | fase 4–5 |
+
+## Respiratorsimulatoren
+
+Skjermen er lagt opp som en Hamilton C6: modusknapp øverst til venstre,
+hovedmonitoreringsparametre (MMP) i kolonnen til venstre, kurver og sløyfer i midten,
+vinduer (Monitorering, Kontroller, Pasient, Verktøy, Oppgaver) via knappene til høyre,
+og innstillingene som knapper nederst. Trykk på en innstilling for å endre den.
+
+- Modi: (S)CMV (volumkontroll), PCV+ (trykkontroll), SPONT (trykkstøtte med backup).
+- Verktøy: inspiratorisk og ekspiratorisk hold (hold inne knappen), hastighet, nullstilling.
+- Oppgaver: før hver endring må du forutsi hva som skjer med en måleverdi. Fasit
+  hentes ved å simulere endringen til steady state i en kopi av respiratoren.
+- Fremdrift (løste oppgaver, forutsigelser) lagres lokalt i nettleseren.
 
 ## Kjøre lokalt
 
