@@ -857,7 +857,7 @@ export function mountRespirator(container, ctx) {
     } else {
       const wait = S.sit.nextDecisionIn(vent.time);
       const st = S.sit.state;
-      if (st.status === 'active' && wait > 0) S.decisionEl.append(h('div', { class: 'decision', style: { borderColor: 'var(--border)' } }, h('span', { class: 'wait' }, `Observer pasienten og respiratoren … neste valg om ${fmt(wait, 0)} s`)));
+      if (st.status === 'active' && wait > 0) S.decisionEl.append(h('div', { class: 'decision', style: { borderColor: 'var(--border)' } }, h('span', { class: 'wait' }, `Observer pasienten og respiratoren … neste valg om ${fmt(wait, 0)} s`), h('div', { class: 'row', style: { marginTop: '8px' } }, button('Gå videre nå', { small: true, onClick: () => { S.sit.skipWait(vent.time); S.sit.tick(vent.time, { m: vent.measurements, gas: gas.state, settings: vent.settings, pmax: vent.settings.pmax, disconnected: vent.disconnected }); for (const msg of S.sit.drain()) addFeed(msg); renderDecision(); } }))));
       else if (st.status === 'active' && S.sit.decisionDone) {
         // tiltaket er gjort (eller respiratoren skal justeres): vis hva vi venter på, så ventetiden ikke blir «stum»
         const stable = S.sit.stableFor(vent.time);
@@ -903,12 +903,12 @@ export function mountRespirator(container, ctx) {
     const patient = { ...structuredClone(getProfile(def.profileId).patient), ...structuredClone(def.patient ?? {}) };
     vent.setSettings(structuredClone(def.settings));
     vent.setPatient(patient);
-    vent.setDisconnected(false); vent.setLeak(0);
+    vent.setDisconnected(false); vent.setLeak(0); vent.setTriggerNoise(0);
     gas.setParams({ petGap: 0.5, ...(def.gas ?? gasForProfile(def.profileId)) });
     vent.reset(); vent.run(20);
     ui.lastBreathTime = vent.time;
     updateGasFromVent(); gas.settle();
-    const hooks = { getPatient: () => vent.patient, setPatient: (p) => vent.setPatient(p), getGas: () => ({ ...gas.params }), setGas: (g) => gas.setParams(g), setDisconnected: (v) => vent.setDisconnected(v), setLeak: (f) => vent.setLeak(f) };
+    const hooks = { getPatient: () => vent.patient, setPatient: (p) => vent.setPatient(p), getGas: () => ({ ...gas.params }), setGas: (g) => gas.setParams(g), setDisconnected: (v) => vent.setDisconnected(v), setLeak: (f) => vent.setLeak(f), setTriggerNoise: (n) => vent.setTriggerNoise(n) };
     const sit = createSituation(def, { hooks });
     sit.start(vent.time);
     ui.situation = { sit, def, index, feedEl: h('div', { class: 'feed' }), summary: null, decisionEl: null };
@@ -927,7 +927,7 @@ export function mountRespirator(container, ctx) {
     const S = ui.situation; if (!S) return;
     if (!S.summary) finishSituation();
     S.sit.end();
-    vent.setDisconnected(false); vent.setLeak(0); gas.setParams({ petGap: 0.5 });
+    vent.setDisconnected(false); vent.setLeak(0); vent.setTriggerNoise(0); gas.setParams({ petGap: 0.5 });
     ui.situation = null;
     applyProfile(ui.profileId === 'egen' ? 'normal' : ui.profileId);
     refreshAll(); renderSide();
@@ -957,7 +957,7 @@ export function mountRespirator(container, ctx) {
     if (ui.situation) endSituation();
     const setup = taskSetup(task);
     ui.task = { task, hidden: setup.hidden, answer: null, holdDone: false, result: null };
-    vent.setSettings(setup.settings); vent.setPatient(setup.patient); vent.setDisconnected(false); vent.setLeak(0);
+    vent.setSettings(setup.settings); vent.setPatient(setup.patient); vent.setDisconnected(false); vent.setLeak(0); vent.setTriggerNoise(0);
     gas.setParams({ petGap: 0.5, ...setup.gas });
     vent.reset(); vent.run(15); ui.lastBreathTime = vent.time; updateGasFromVent(); gas.settle();
     ui.running = true; standbyBtn.classList.remove('on'); closeWindow();

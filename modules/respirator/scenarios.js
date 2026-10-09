@@ -33,6 +33,7 @@ export const ACTIONS = {
   blodgass: { label: 'Ta blodgass', kind: 'undersok' },
   hold: { label: 'Mål Pplateau (inspiratorisk hold)', kind: 'undersok' },
   juster: { label: 'Juster respiratoren', kind: 'tiltak' },
+  kondens: { label: 'Tøm kondensvann fra slangen', kind: 'tiltak' },
 };
 export const EXAM_IDS = ['lytt', 'se', 'krets', 'hold', 'blodgass'];
 /** Standardtekster for tiltak et scenario ikke nevner spesielt. */
@@ -42,6 +43,7 @@ export const DEFAULT_NEUTRAL = {
   sedasjonNed: 'Sedasjonsnivået er ikke årsaken.',
   smertelindring: 'Ingen tegn til smerte som årsak.',
   juster: 'Respiratorjustering alene løser ikke dette; årsaken ligger hos pasienten eller i kretsen.',
+  kondens: 'Slangene er tørre. Ingen effekt.',
 };
 const DEFAULT_CLUES = {
   hold: 'Du måler Pplateau med inspiratorisk hold: se verdien på skjermen og sammenlign med Ppeak.',
@@ -56,6 +58,8 @@ const SETT = {
   normalScmv: { mode: 'APVCMV', vt: 480, rate: 14, peep: 5, fio2: 35, timingMode: 'ie', ie: { i: 1, e: 2 } },
   kolsScmv: { mode: 'APVCMV', vt: 450, rate: 14, peep: 5, fio2: 35, timingMode: 'ie', ie: { i: 1, e: 3 } },
   spont: { mode: 'SPONT', psupport: 10, peep: 6, fio2: 35, ets: 25, pramp: 50 },
+  // Lett sedert pasient som trigger selv: trykkstøtte 8 over PEEP 5, O2 30 %, ETS 25 %, flowtrigger 2 l/min, apnétid 20 s (se KILDER.md)
+  spontLett: { mode: 'SPONT', psupport: 8, peep: 5, fio2: 30, ets: 25, pramp: 50, trigger: { type: 'flow', value: 2 }, apneaTime: 20 },
 };
 
 /**
@@ -303,11 +307,119 @@ export const SITUATIONS = [
       explanation: 'Smerte gir takypné, høy drive og asynkroni, med takykardi og hypertensjon. Vurder smerte (CPOT/BPS) før sedasjon: analgesi først. Sedasjon uten smertelindring skjuler problemet.',
     }],
   },
+  {
+    id: 'avvenning-utmattelse',
+    title: 'Avvenning: utmattelse under trykkstøtte',
+    vignette: 'Mann, 66 år, 178 cm, pneumoni, dag 6 på respirator. Lett sedert (RASS −1) og puster selv i SPONT med trykkstøtte 8 over PEEP 5, O2 30 %, etter at sedasjonen ble trappet ned i morges.',
+    profileId: 'normal', patient: { height: 178, sex: 'M', compliance: 50, effort: { amplitude: 5, rate: 16, duration: 1.0 } }, settings: { ...SETT.spontLett },
+    gas: { shunt: 0.08, recruitability: 0.2 },
+    variants: [{
+      id: 'utmattelse', sounds: {}, vitals: { hr: 25, sys: 15 }, cues: [{ at: 0, who: 'obs', text: 'Han har begynt å puste raskere. Du ser at halsmusklene strammes ved hvert pust.' }, { at: 45, who: 'monitor', text: 'Respirasjonsfrekvensen på monitoren viser 30.' }, { at: 90, who: 'kollega', text: '«Han ser sliten ut. Svetter i pannen.»' }], delay: [10, 25],
+      effect: { effort: { amplitude: 3, rate: 32, duration: 0.6 }, shuntAdd: 0.04, rampIn: 90 },
+      clues: { lytt: 'Svake respirasjonslyder basalt bilateralt, ellers normalt. Ingen pipelyder.', se: 'Rask, overfladisk pust med bruk av hjelpemuskler i halsen. Han er svett, svarer på tiltale, men virker utmattet.', krets: 'Kretsen er tett og tørr.', blodgass: 'pH 7,31, PaCO2 7,2 kPa, PaO2 9,0 kPa: begynnende respiratorisk acidose.' },
+      fixes: { juster: { text: 'Du øker trykkstøtten (eller hviler ham på kontrollert modus). Pustene blir dypere, og frekvensen faller gradvis.', recover: 60 } },
+      harmful: { sedasjon: 'Sedasjonsbolus demper pustedriven: han puster enda mindre, SpO2 faller og PaCO2 stiger. Utmattelse behandles med mer støtte, ikke mindre drive.' },
+      neutral: { sug: 'Lite sekret.', bittblokk: 'Han biter ikke.', koble: 'Kretsen var tilkoblet.', tube: 'Tuben lå riktig.', bronkodilatator: 'Ingen pipelyder, ingen effekt.', rekruttering: 'Ikke indisert.', lege: 'Legen er enig: øk trykkstøtten til Vt 6–8 ml/kg og frekvens under 30, eller hvil ham på kontrollert modus til i morgen.', reposisjon: 'Ingen effekt.', smertelindring: 'Han angir ikke smerte.', sedasjonNed: 'Han er allerede våken nok.' },
+      ventFix: true,
+      resolve: ({ m, settings, fixed }) => fixed && (settings.mode !== 'SPONT' || settings.psupport >= 12) && m.vtPerKg >= 6 && m.fTotal <= 30 && m.vte > 0 && m.fTotal / (m.vte / 1000) <= 105,
+      explanation: 'Trykkstøtte 8 var nok mens han var uthvilt, men når respirasjonsmuskulaturen trettes, blir pusten rask og overfladisk (RSB = f/Vt over 105 /min/l) og PaCO2 stiger. Riktig tiltak er å øke støtten til Vt 6–8 ml/kg IBW og frekvens under 30, eller hvile pasienten på kontrollert modus og prøve igjen neste dag. Sedasjon tar bort pustedriven og forverrer hypoventilasjonen.',
+    }],
+  },
+  {
+    id: 'autotrigging',
+    title: 'Autotrigging av kondensvann i slangen',
+    vignette: 'Kvinne, 58 år, 168 cm, operert for aortaaneurisme i går. Lett sedert og i ferd med å våkne. Puster selv i SPONT med trykkstøtte 8 over PEEP 5, O2 30 %, flowtrigger 2 l/min. Aktiv fukter på kretsen.',
+    profileId: 'normal', patient: { height: 168, sex: 'K', effort: { amplitude: 5, rate: 15, duration: 1.0 } }, settings: { ...SETT.spontLett },
+    gas: { shunt: 0.06, recruitability: 0.2 },
+    variants: [{
+      id: 'kondens', sounds: {}, vitals: { hr: 5 }, cues: [{ at: 0, who: 'obs', text: 'Du hører at det skvulper i inspirasjonsslangen.' }, { at: 25, who: 'obs', text: 'Respiratoren leverer pust tett i tett, men pasienten ligger helt rolig og ser ikke ut til å anstrenge seg.' }, { at: 60, who: 'monitor', text: 'PetCO2 på monitoren faller.' }], delay: [10, 25],
+      effect: { triggerNoise: 4 },
+      clues: { lytt: 'Normale respirasjonslyder. Klukkingen kommer fra slangen, ikke fra lungene.', se: 'Pasienten ligger rolig med lukkede øyne. Brystet hever seg hver gang respiratoren leverer et pust, men du ser ingen egen inspirasjonsbevegelse i hals eller mage før pustene. Slangen rykker.', krets: 'Det står vann i inspirasjonsslangen som skvulper fram og tilbake. Vannfellen er full.', blodgass: 'pH 7,50, PaCO2 3,9 kPa: respiratorisk alkalose av hyperventilasjon.' },
+      fixes: { kondens: { text: 'Du tømmer vannet fra slangen og vannfellen. Pustene følger igjen pasientens egne pusteforsøk, og frekvensen faller til 15.', recover: 0 }, juster: { text: 'Du gjør triggeren mindre følsom (høyere flowtrigger eller trykktrigger). Autotriggingen stopper, men vannet ligger der fortsatt og bør tømmes.', recover: -1, partial: {} } },
+      harmful: { sedasjon: 'Hun er allerede rolig. Sedasjon hjelper ikke mot autotrigging, men demper hennes egen pust.' },
+      neutral: { sug: 'Ingen sekret i tuben.', bittblokk: 'Hun biter ikke.', koble: 'Kretsen var tilkoblet.', tube: 'Tuben lå riktig.', bronkodilatator: 'Ingen pipelyder.', rekruttering: 'Ikke indisert.', lege: 'Legen ber deg sjekke kretsen for vann og lekkasje før du endrer innstillinger.', reposisjon: 'Ingen effekt.', cuff: 'Cuff-trykket er 25 cmH2O, ingen lekkasje.', sedasjonNed: 'Hun er allerede lett sedert.', smertelindring: 'Ingen tegn til smerte.' },
+      ventFix: true,
+      resolve: ({ m, settings, fixed }) => (fixed || settings.trigger.value >= 4.5 || settings.trigger.type === 'pressure') && m.fTotal <= 20,
+      explanation: 'Autotrigging: respiratoren tolker trykk- og flowsvingninger fra vann i slangen som pasientens pusteforsøk og leverer pust hun ikke har bedt om. Tegnene er høy frekvens uten synlig egeninnsats, fallende PetCO2 og respiratorisk alkalose. Andre vanlige årsaker er lekkasje i krets eller cuff og hjerteoscillasjoner. Tøm kondens og tett lekkasjer, og gjør om nødvendig triggeren mindre følsom (høyere flowtrigger eller trykktrigger).',
+    }],
+  },
+  {
+    id: 'overassistanse',
+    title: 'Overassistanse: for høy trykkstøtte',
+    vignette: 'Kvinne, 45 år, 165 cm, pneumoni i bedring. Lett sedert og puster selv i SPONT med trykkstøtte 10 over PEEP 6, O2 30 %, siden i går da hun trengte mye støtte.',
+    profileId: 'normal', patient: { height: 165, sex: 'K', compliance: 32, effort: { amplitude: 5, rate: 16, duration: 1.0 } }, settings: { ...SETT.spontLett, psupport: 10, peep: 6 },
+    gas: { shunt: 0.08, recruitability: 0.2 },
+    variants: [{
+      id: 'overassistanse', sounds: {}, vitals: { hr: -5 }, cues: [{ at: 0, who: 'obs', text: 'Pustene hennes er blitt store og dype, med lange pauser imellom.' }, { at: 45, who: 'monitor', text: 'PetCO2 har falt til 3,8 kPa.' }, { at: 90, who: 'kollega', text: '«Hun puster bare 10–11 ganger i minuttet. Er støtten for høy?»' }], delay: [10, 25],
+      effect: { compliance: 1.6, effort: { amplitude: 4, rate: 11, duration: 1.0 }, rampIn: 120 },
+      clues: { lytt: 'Normale respirasjonslyder, bedre luftinngang basalt enn i går.', se: 'Dype pust med stor brystbevegelse og lange ekspirasjonspauser. Innimellom ser du en liten inspirasjonsbevegelse i halsen uten at respiratoren leverer pust.', krets: 'Kretsen er tett og tørr.', blodgass: 'pH 7,49, PaCO2 4,0 kPa, PaO2 13 kPa: respiratorisk alkalose.' },
+      fixes: { juster: { text: 'Du senker trykkstøtten til Vt havner på 6–8 ml/kg IBW. Da får hun jobbe litt selv, og PetCO2 normaliseres.', recover: -1, partial: {} } },
+      harmful: { sedasjon: 'Mer sedasjon demper driven ytterligere; hun puster enda sjeldnere og dypere.' },
+      neutral: { sug: 'Lite sekret.', bittblokk: 'Hun biter ikke.', koble: 'Kretsen var tilkoblet.', tube: 'Tuben lå riktig.', bronkodilatator: 'Ingen pipelyder.', rekruttering: 'Ikke indisert.', lege: 'Legen: «Lungene er bedre. Senk støtten til Vt 6–8 ml/kg, så får hun jobbe litt selv.»', reposisjon: 'Ingen effekt.', sedasjonNed: 'Hun er allerede lett sedert.', smertelindring: 'Ingen smerter.' },
+      ventFix: true,
+      resolve: ({ m, settings }) => settings.psupport <= 8 && m.vtPerKg >= 5.5 && m.vtPerKg <= 8.5,
+      explanation: 'Når lungene bedres, gir samme trykkstøtte større tidevolum. Overassistanse gir store Vt (over 8 ml/kg IBW), lav frekvens, hypokapni og ineffektive pusteforsøk, fordi pustedriven dempes. Senk trykkstøtten til Vt 6–8 ml/kg IBW; det reduserer også ineffektiv trigging (Thille 2008).',
+    }],
+  },
+  {
+    id: 'scmv-slutter-trigge',
+    title: '(S)CMV+: pasienten slutter å trigge etter mer sedasjon',
+    vignette: 'Mann, 70 år, 176 cm, urosepsis, dag 3. Lett sedert med propofol og puster i (S)CMV+ der han trigger alle pustene: innstilt rate 12, Vt 480 ml (6,5 ml/kg), PEEP 5, O2 35 %. I kveld har han selv ligget på 18 pust i minuttet.',
+    profileId: 'normal', patient: { height: 176, sex: 'M', effort: { amplitude: 6, rate: 18, duration: 1.0 } }, settings: { mode: 'APVCMV', vt: 480, rate: 12, peep: 5, fio2: 35, timingMode: 'ie', ie: { i: 1, e: 2 }, trigger: { type: 'flow', value: 2 } },
+    gas: { shunt: 0.07, recruitability: 0.2 },
+    variants: [{
+      id: 'dyp-sedasjon', sounds: {}, vitals: { hr: -8, sys: -10 }, cues: [{ at: 0, who: 'kollega', text: '«Jeg satte opp propofolen litt for en time siden, han var urolig.»' }, { at: 35, who: 'monitor', text: 'Respirasjonsfrekvensen har falt fra 18 til 12.' }, { at: 90, who: 'monitor', text: 'PetCO2 stiger, nå 6,5 kPa.' }], delay: [10, 25],
+      effect: { effort: { amplitude: 0, rate: 18, duration: 1.0 }, rampIn: 60 },
+      clues: { lytt: 'Normale respirasjonslyder.', se: 'Han sover dypt og reagerer ikke på tiltale (RASS −4). Ingen egne pusteforsøk; alle pustene er maskinpust.', krets: 'Kretsen er tett.', blodgass: 'pH 7,30, PaCO2 7,0 kPa: respiratorisk acidose av hypoventilasjon.' },
+      fixes: { sedasjonNed: { text: 'Du reduserer propofolen etter ordinasjon. Etter en stund begynner han å trigge igjen, og minuttvolumet stiger.', recover: 90 }, juster: { text: 'Du øker innstilt rate så minuttvolumet blir tilstrekkelig mens han er dypt sedert, og tar opp sedasjonsnivået med legen.', recover: -1, partial: {} } },
+      harmful: { sedasjon: 'Enda mer sedasjon: han hypoventilerer videre og PaCO2 stiger.' },
+      neutral: { sug: 'Lite sekret.', bittblokk: 'Han biter ikke.', koble: 'Kretsen var tilkoblet.', tube: 'Tuben lå riktig.', bronkodilatator: 'Ingen pipelyder.', rekruttering: 'Ikke indisert.', lege: 'Legen: «Enten mindre sedasjon eller høyere backup-rate. Innstilt rate skal gi nok minuttvolum alene.»', reposisjon: 'Ingen effekt.', smertelindring: 'Han er dypt sedert.', vaeske: 'Blodtrykket er akseptabelt.' },
+      ventFix: true,
+      resolve: ({ m }) => m.expMinVol >= 6.5,
+      explanation: 'I (S)CMV+ bestemmer pasienten frekvensen så lenge han trigger; innstilt rate er bare et gulv. Når sedasjonen økes og egenpusten forsvinner, faller frekvensen til gulvet, og minuttvolumet blir for lavt. Sett alltid innstilt rate slik at den gir et akseptabelt minuttvolum alene, og vurder sedasjonsnivået (RASS-mål) før du øker.',
+    }],
+  },
+  {
+    id: 'pcv-ards-vt-faller',
+    title: 'PCV+ ved ARDS: tidevolumet faller',
+    vignette: 'Kvinne, 49 år, 170 cm, ARDS etter pankreatitt, dag 4. Lett sedert og trigger pustene selv i PCV+: Pcontrol 14 over PEEP 10, rate 20, O2 50 %. Vt har ligget på rundt 360 ml (6 ml/kg).',
+    profileId: 'ards', patient: { height: 170, sex: 'K', compliance: 32, resistance: 10, resistanceExp: 10, effort: { amplitude: 4, rate: 22, duration: 0.8 } }, settings: { ...SETT.ardsPcv, pcontrol: 14, rate: 20, peep: 10, fio2: 50 },
+    gas: { shunt: 0.28, recruitability: 0.5 },
+    variants: [{
+      id: 'stivere-lunge', sounds: {}, vitals: { hr: 15, sys: -5 }, cues: [{ at: 0, who: 'obs', text: 'Hun virker litt mer anstrengt enn i sted.' }, { at: 45, who: 'monitor', text: 'SpO2 kryper nedover.' }, { at: 90, who: 'kollega', text: '«Tidevolumet har falt. Det var 360 for en time siden.»' }], delay: [10, 25],
+      effect: { compliance: 0.55, shuntAdd: 0.15, rampIn: 120 },
+      clues: { lytt: 'Svekket respirasjonslyd basalt bilateralt, fine knatrelyder.', se: 'Tuben står som før. Brystet beveger seg mindre enn tidligere. Hun bruker hjelpemuskler lett.', krets: 'Kretsen er tett, ingen lekkasje.', blodgass: 'pH 7,28, PaCO2 7,4 kPa, PaO2 8,2 kPa på 50 % O2.' },
+      fixes: { juster: { text: 'Du holder drivtrykket ≤ 15, øker frekvensen for minuttvolumet, og bedrer oksygeneringen med PEEP/O2. Legen varsles.', recover: -1, partial: {} }, rekruttering: { text: 'Legen gjør en rekrutteringsmanøver og øker PEEP. Oksygeneringen bedres, men tidevolum og minuttvolum må fortsatt justeres.', recover: -1, partial: { shuntAdd: 0 } } },
+      harmful: { vaeske: 'Mer væske forverrer lungeødemet ved ARDS.' },
+      neutral: { sug: 'Lite sekret.', bittblokk: 'Hun biter ikke.', koble: 'Kretsen var tilkoblet.', tube: 'Tuben lå riktig.', bronkodilatator: 'Ingen pipelyder.', lege: 'Legen ber deg justere innstillingene nå og bestiller røntgen thorax.', reposisjon: 'Ingen umiddelbar effekt; bukleie vurderes av legen.', sedasjon: 'Dypere sedasjon endrer ikke lungemekanikken.', sedasjonNed: 'Ikke aktuelt nå.', smertelindring: 'Ingen smerter.' },
+      ventFix: true,
+      resolve: ({ m, gas }) => m.vtPerKg >= 4 && m.drivingPressure <= 15.5 && m.expMinVol >= 7 && gas.spo2 >= 0.90,
+      explanation: 'I PCV+ er trykket konstant og tidevolumet avhenger av compliance: når lungen blir stivere, faller Vt og minuttvolumet, og CO2 stiger. Ikke jag tidevolumet med høyere trykk; hold drivtrykket (Pplat − PEEP) ≤ 15 cmH2O, øk heller frekvensen (opp mot 30–35), godta moderat hyperkapni (permissiv hyperkapni), og bedre oksygeneringen med PEEP og O2. Varsle lege: forverringen kan være atelektase, væske eller progresjon av ARDS.',
+    }],
+  },
+  {
+    id: 'spont-sekret-kols',
+    title: 'Sekret hos KOLS-pasient i trykkstøtte',
+    vignette: 'Mann, 61 år, 178 cm, KOLS, pneumoni i bedring. Lett sedert og puster selv i SPONT med trykkstøtte 12 over PEEP 5, O2 35 %, ETS 35 %. Siste suging var for 6 timer siden.',
+    profileId: 'obstruktiv', patient: { height: 178, sex: 'M', effort: { amplitude: 8, rate: 18, duration: 0.9 } }, settings: { mode: 'SPONT', psupport: 12, peep: 5, fio2: 35, ets: 35, pramp: 50, trigger: { type: 'flow', value: 2 }, apneaTime: 20 },
+    gas: { shunt: 0.1, recruitability: 0.1 },
+    variants: [{
+      id: 'sekret-spont', sounds: { secretions: 1, cough: true }, vitals: { hr: 15, sys: 5 }, cues: [{ at: 0, who: 'obs', text: 'Du hører rasling i tuben når han puster ut.' }, { at: 35, who: 'obs', text: 'Han hoster, uten at det ser ut til å hjelpe.' }, { at: 70, who: 'monitor', text: 'Frekvensen er 26, SpO2 92 %.' }], delay: [10, 25],
+      effect: { resistance: 1.7, resistanceExp: 1.5, shuntAdd: 0.05, effort: { amplitude: 9, rate: 26, duration: 0.8 }, rampIn: 90 },
+      clues: { lytt: 'Grove rhonchi over begge lunger som endrer seg når han hoster.', se: 'Synlig sekret i tuben. Han hoster og er lett urolig.', krets: 'Kretsen er tett. Litt sekret i filteret.', blodgass: 'pH 7,33, PaCO2 6,8 kPa, PaO2 8,5 kPa.' },
+      fixes: { sug: { text: 'Du suger opp seigt, gulgrønt sekret. Pusten roer seg og tidevolumet øker.', recover: 20 } },
+      harmful: { sedasjon: 'Sedasjon demper hosten og egenpusten; sekretet blir liggende.' },
+      neutral: { bittblokk: 'Han biter ikke.', koble: 'Kretsen var tilkoblet.', tube: 'Tuben lå riktig.', bronkodilatator: 'Litt mindre pipelyder, men hovedproblemet er sekret.', rekruttering: 'Ikke indisert.', lege: 'Legen: «Sug ham først, så ser vi.»', reposisjon: 'Ingen effekt.', juster: 'Mer trykkstøtte gir litt større pust, men sekretet må fjernes.', sedasjonNed: 'Han er våken nok til å hoste.', smertelindring: 'Ingen smerter.' },
+      resolve: ({ m, fixed }) => fixed && m.vtPerKg >= 5 && m.fTotal <= 24,
+      explanation: 'Sekret øker luftveismotstanden. I trykkstøtte er trykket begrenset, så flow og tidevolum faller mens frekvensen stiger; i volumkontroll ville topptrykket steget i stedet. Suging er tiltaket. Hos KOLS-pasienter settes ETS gjerne høyere (30–40 %) for kortere inspirasjon og mindre auto-PEEP. Sedasjon demper hoste og egenpust og forverrer.',
+    }],
+  },
 ];
 
 export function getSituation(id) { return SITUATIONS.find((s) => s.id === id) ?? null; }
 
 const RESOLVE_HOLD = 10; // s sammenhengende oppfylt løsningskriterium
+const SETTLE_AFTER_EFFECT = 20; // s etter at hendelsen er fullt utviklet før løsningskriteriet teller (glidende gjennomsnitt må rekke å falle)
 const VITALS_BASE = { hr: 78, sys: 122, dia: 68, temp: 37.1 };
 
 /** Vitale tegn (puls, blodtrykk) fra baseline, hendelsens effekt og hypoksi. Ren funksjon. */
@@ -330,7 +442,7 @@ export function createSituation(def, { rng = Math.random, hooks } = {}) {
   const [d0, d1] = variant.delay;
   const st = {
     id: def.id, variantId: variant.id, status: 'baseline', tStart: null, tEvent: null, tFired: null, tFixed: null, tResolved: null,
-    log: [], wrongActions: 0, examined: new Set(), baseline: null, fixed: false, ramp: null, resolveSince: null,
+    log: [], wrongActions: 0, examined: new Set(), baseline: null, fixed: false, ramp: null, resolveSince: null, tFull: null,
     messages: [], pending: [], cueIndex: 0, flags: {}, factor: 0,
   };
   const vitalsBase = { ...VITALS_BASE, ...(def.vitalsBase ?? {}) };
@@ -344,9 +456,9 @@ export function createSituation(def, { rng = Math.random, hooks } = {}) {
   function buildDecision() {
     if (decision.examsDone < 2) {
       const ids = EXAM_IDS.filter((id) => !decision.tried.has(id));
-      return { kind: 'undersok', text: decision.examsDone === 0 ? 'Noe skjer med pasienten. Hva undersøker du først?' : 'Hva undersøker du videre?', options: pickN(ids, 5).map((id) => ({ id, label: ACTIONS[id].label })), skippable: decision.examsDone > 0 };
+      return { kind: 'undersok', text: decision.examsDone === 0 ? 'Noe skjer med pasienten. Hva undersøker du først?' : 'Hva undersøker du videre?', options: pickN(ids, 5).map((id) => ({ id, label: ACTIONS[id].label })), skippable: true };
     }
-    const fixes = Object.keys(variant.fixes).filter((id) => !decision.tried.has(id));
+    const fixes = Object.keys(variant.fixes).filter((id) => id !== 'juster' && !decision.tried.has(id));
     const others = Object.keys(ACTIONS).filter((id) => ACTIONS[id].kind === 'tiltak' && !variant.fixes[id] && !decision.tried.has(id) && id !== 'juster');
     const opts = [...fixes.slice(0, 2), ...pickN(others, 5 - Math.min(2, fixes.length) - 1)];
     if (!decision.tried.has('juster')) opts.push('juster');
@@ -372,6 +484,7 @@ export function createSituation(def, { rng = Math.random, hooks } = {}) {
     hooks.setGas({ shunt: b.gas.shunt + (e.shuntAdd ?? 0) * scale, petGap: 0.5 + ((e.petGap ?? 0.5) - 0.5) * scale });
     hooks.setDisconnected(!!e.disconnect && scale >= 1);
     hooks.setLeak?.((e.leak ?? 0) * scale);
+    hooks.setTriggerNoise?.((e.triggerNoise ?? 0) * scale);
   }
 
   return {
@@ -389,13 +502,13 @@ export function createSituation(def, { rng = Math.random, hooks } = {}) {
         st.status = 'active';
         st.tFired = t;
         if (variant.effect.rampIn) st.ramp = { from: 0, to: 1, start: t, duration: variant.effect.rampIn };
-        else { applyEffect(variant.effect, 1); st.factor = 1; }
+        else { applyEffect(variant.effect, 1); st.factor = 1; st.tFull = t; }
       }
       if (st.ramp) {
         const x = Math.min(1, (t - st.ramp.start) / st.ramp.duration);
         st.factor = st.ramp.from + (st.ramp.to - st.ramp.from) * x;
         applyEffect(variant.effect, st.factor);
-        if (x >= 1) st.ramp = null;
+        if (x >= 1) { if (st.ramp.to >= 1) st.tFull = t; st.ramp = null; }
       }
       // skriptede meldinger (relativt til hendelsen)
       if (st.tFired !== null) {
@@ -413,6 +526,8 @@ export function createSituation(def, { rng = Math.random, hooks } = {}) {
       if (ctx.pmax && m.ppeak > ctx.pmax && !st.flags.ppeak) { st.flags.ppeak = true; say(t, 'respirator', `Høytrykksalarm: Ppeak ${Math.round(m.ppeak)} cmH2O over grensen ${ctx.pmax}.`); }
       if (m.pressureLimited && !st.flags.plimit) { st.flags.plimit = true; say(t, 'respirator', 'Trykkbegrensning: respiratoren holder igjen ved Plimit, og levert Vt faller.'); }
       if (ctx.disconnected && !st.flags.disc) { st.flags.disc = true; say(t, 'respirator', 'Alarm: lavt trykk / frakobling. ExpMinVol 0.'); }
+      if (m.fTotal > 30 && !st.flags.ftot) { st.flags.ftot = true; say(t, 'respirator', `Alarm: høy frekvens, fTotal ${Math.round(m.fTotal)}.`); }
+      if (m.expMinVol != null && m.expMinVol < 4 && !ctx.disconnected && !st.flags.mvlow) { st.flags.mvlow = true; say(t, 'respirator', `Alarm: lavt minuttvolum, ExpMinVol ${m.expMinVol.toFixed(1)} l/min.`); }
       if (m.autoPeep > 4 && !st.flags.autopeep) { st.flags.autopeep = true; say(t, 'respirator', `AutoPEEP ${m.autoPeep.toFixed(0)} cmH2O: ekspirasjonsflowen når ikke null.`); }
 
       if (st.status === 'active' && !decision.done && !decision.pending) {
@@ -422,7 +537,9 @@ export function createSituation(def, { rng = Math.random, hooks } = {}) {
         if (t >= decision.availableAt) decision.pending = buildDecision();
       }
       if (st.status === 'active') {
-        const ok = variant.resolve({ ...ctx, fixed: st.fixed });
+        // løsningskriteriet teller først når hendelsen er fullt utviklet, eller brukeren har gjort tiltak/valgt å justere
+        const gate = st.fixed || decision.done || (st.tFull !== null && t - st.tFull >= SETTLE_AFTER_EFFECT);
+        const ok = gate && variant.resolve({ ...ctx, fixed: st.fixed });
         if (ok) {
           if (st.resolveSince === null) st.resolveSince = t;
           if (t - st.resolveSince >= RESOLVE_HOLD) {
@@ -468,6 +585,8 @@ export function createSituation(def, { rng = Math.random, hooks } = {}) {
     get decisionDone() { return decision.done; },
     /** Hopp over videre undersøkelser og gå til tiltak. */
     skipToActions(t) { decision.examsDone = 2; decision.pending = null; decision.availableAt = t + 1; },
+    /** Hopp over ventepausen før neste valg. */
+    skipWait(t) { if (!decision.pending && !decision.done && st.status === 'active') decision.availableAt = t; },
     /** Hent nye meldinger siden sist. */
     drain() { const out = st.pending; st.pending = []; return out; },
     /** Vitale tegn nå. */
@@ -516,7 +635,7 @@ export function createSituation(def, { rng = Math.random, hooks } = {}) {
     },
     /** Avslutt: sett pasienten tilbake. */
     end() {
-      if (st.baseline) { hooks.setPatient(structuredClone(st.baseline.patient)); hooks.setGas(structuredClone(st.baseline.gas)); hooks.setDisconnected(false); }
+      if (st.baseline) { hooks.setPatient(structuredClone(st.baseline.patient)); hooks.setGas(structuredClone(st.baseline.gas)); hooks.setDisconnected(false); hooks.setLeak?.(0); hooks.setTriggerNoise?.(0); }
     },
   };
 }

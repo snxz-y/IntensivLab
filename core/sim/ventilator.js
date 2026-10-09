@@ -93,6 +93,18 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
   const hold = { requested: null, active: null, start: 0, released: false };
   let disconnected = false;
   let leak = 0; // andel av inspirert volum som lekker (cuff/krets): VTE = VTI·(1 − leak)
+  // Støy på triggersignalet (kondensvann i slangen, lekkasje, hjerteoscillasjoner): korte «flowstøt» i L/min
+  // under ekspirasjonen. Er støyen større enn innstilt trigger, autotrigger respiratoren.
+  let triggerNoise = 0;
+  let noiseSeed = 12345;
+  let noiseNext = Infinity, noiseEnd = -Infinity;
+  const noiseRand = () => { noiseSeed = (noiseSeed * 1103515245 + 12345) & 0x7fffffff; return noiseSeed / 0x7fffffff; };
+  function noiseNow() {
+    if (triggerNoise <= 0) return 0;
+    if (noiseNext === Infinity) noiseNext = t + 0.8 + noiseRand() * 1.2;
+    if (t >= noiseNext) { noiseEnd = noiseNext + 0.25; noiseNext = noiseEnd + 1.2 + noiseRand() * 1.5; }
+    return t < noiseEnd ? triggerNoise : 0;
+  }
   let apvPinsp = 15; // adaptiv ΔPinsp (over PEEP) i APVcmv, justeres pust for pust
   let apvLimited = false; // APV ville gått høyere enn Plimit tillater
   // Ved frakobling står luftveien åpen mot atmosfæren uansett hva respiratoren gjør.
@@ -274,11 +286,12 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
   function triggerCheck(pmus) {
     if (disconnected) return false; // ingen flow/trykk å trigge på i en åpen krets
     if (t - expStart < MIN_EXP_BEFORE_TRIGGER) return false;
-    const pdrop = pmus - (lung.elasticPressure - s.peep); // trykk pasienten trekker under PEEP
-    if (pdrop <= 0) return false;
-    if (s.trigger.type === 'pressure') return pdrop >= s.trigger.value;
+    const pdrop = Math.max(0, pmus - (lung.elasticPressure - s.peep)); // trykk pasienten trekker under PEEP
+    const noise = noiseNow(); // L/min, 0 uten kondens/lekkasje
+    if (pdrop <= 0 && noise <= 0) return false;
     const r = lung.state.resistance;
-    return pdrop / r >= s.trigger.value / 60; // flow i L/s
+    if (s.trigger.type === 'pressure') return pdrop + (noise / 60) * r >= s.trigger.value;
+    return (pdrop / r) * 60 + noise >= s.trigger.value; // flow i L/min
   }
 
   function patientTriggerDisplayDrop(pmus) {
@@ -393,7 +406,9 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
           return step();
         }
       }
-      if (!disconnected && lung.state.deltaVolume > 0) b.vti += lung.state.deltaVolume;
+      // VTI = netto inspirert volum: slipper pasienten innsatsen midt i et trykkregulert pust, kan volum gå tilbake
+      // i kretsen (aktiv ekspirasjonsventil); det trekkes fra så VTI ≈ VTE uten lekkasje.
+      if (!disconnected) b.vti = Math.max(0, b.vti + lung.state.deltaVolume);
       if (phase === 'insp' && lung.state.paw >= s.pmax) {
         // Høytrykksalarm: respiratoren åpner ekspirasjonsventilen umiddelbart
         b.highPressure = true;
@@ -444,6 +459,9 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
     get disconnected() { return disconnected; },
     setDisconnected(v) { disconnected = !!v; },
     get leak() { return leak; },
+    get triggerNoise() { return triggerNoise; },
+    /** Støy på triggersignalet i L/min (0 = av). Brukes av caser med kondensvann eller lekkasje i kretsen. */
+    setTriggerNoise(lpm) { triggerNoise = Math.max(0, lpm || 0); if (triggerNoise <= 0) { noiseNext = Infinity; noiseEnd = -Infinity; } },
     setLeak(fraction) { leak = Math.min(0.9, Math.max(0, fraction || 0)); },
 
     setSettings(partial) {

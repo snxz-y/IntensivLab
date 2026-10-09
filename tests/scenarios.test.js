@@ -15,6 +15,7 @@ function rig(def, variantIndex = 0) {
     getGas: () => ({ ...gas.params }), setGas: (g) => gas.setParams(g),
     setDisconnected: (v) => vent.setDisconnected(v),
     setLeak: (f) => vent.setLeak(f),
+    setTriggerNoise: (n) => vent.setTriggerNoise(n),
   };
   const rng = (() => { let i = 0; return () => (i++ === 0 ? variantIndex / def.variants.length + 1e-6 : 0.5); })();
   const sit = createSituation(def, { rng, hooks });
@@ -203,4 +204,101 @@ test('end() setter pasienten tilbake', () => {
   sit.end();
   assert.equal(vent.patient.compliance, c0);
   assert.equal(gas.params.shunt, gasForProfile('normal').shunt);
+});
+
+function toActions(R) { for (let i = 0; i < 90 && !R.sit.decision; i++) R.run(1); R.sit.skipToActions(R.vent.time); R.run(2); assert.ok(R.sit.decision && R.sit.decision.kind === 'tiltak', 'tiltaksvalg'); }
+function untilResolved(R, maxSec) { for (let i = 0; i < maxSec && R.sit.state.status !== 'resolved'; i++) R.run(1); return R.sit.state.status === 'resolved'; }
+
+test('avvenning: utmattelse gir RSB > 105, mer trykkstøtte løser', () => {
+  const R = rig(SITUATIONS.find((s) => s.id === 'avvenning-utmattelse'));
+  R.vent.run(30); R.sit.start(R.vent.time); R.run(160);
+  const m = R.vent.measurements;
+  assert.ok(m.fTotal >= 28 && m.vte < 320, `rask overfladisk pust: f ${m.fTotal}, VTE ${m.vte}`);
+  assert.ok(m.fTotal / (m.vte / 1000) > 105, 'RSB over 105');
+  assert.notEqual(R.sit.state.status, 'resolved');
+  toActions(R);
+  assert.equal(R.sit.choose('juster', R.vent.time).kind, 'riktig');
+  R.run(20); assert.notEqual(R.sit.state.status, 'resolved', 'ikke løst før trykkstøtten faktisk økes');
+  R.vent.setSettings({ psupport: 14 });
+  assert.ok(untilResolved(R, 120), 'løst med Ps 14');
+});
+
+test('autotrigging: kondens gir høy frekvens uten egeninnsats; tømming eller mindre følsom trigger løser', () => {
+  let R = rig(SITUATIONS.find((s) => s.id === 'autotrigging'));
+  R.vent.run(30); R.sit.start(R.vent.time); R.run(90);
+  assert.ok(R.vent.measurements.fTotal >= 24, `autotrigget frekvens ${R.vent.measurements.fTotal}`);
+  toActions(R);
+  assert.ok(R.sit.decision.options.some((o) => o.id === 'kondens'));
+  assert.equal(R.sit.choose('kondens', R.vent.time).kind, 'riktig');
+  assert.ok(untilResolved(R, 60));
+  assert.ok(R.vent.measurements.fTotal <= 17);
+  R = rig(SITUATIONS.find((s) => s.id === 'autotrigging'));
+  R.vent.run(30); R.sit.start(R.vent.time); R.run(90); toActions(R);
+  assert.equal(R.sit.choose('juster', R.vent.time).kind, 'delvis');
+  R.run(15); assert.notEqual(R.sit.state.status, 'resolved');
+  R.vent.setSettings({ trigger: { type: 'flow', value: 5 } });
+  assert.ok(untilResolved(R, 60), 'løst med flowtrigger 5');
+});
+
+test('overassistanse: Vt over 8 ml/kg og lav frekvens; lavere trykkstøtte løser', () => {
+  const R = rig(SITUATIONS.find((s) => s.id === 'overassistanse'));
+  R.vent.run(30); R.sit.start(R.vent.time); R.run(200);
+  assert.ok(R.vent.measurements.vtPerKg > 8.5, `Vt/IBW ${R.vent.measurements.vtPerKg}`);
+  assert.ok(R.vent.measurements.fTotal <= 12);
+  toActions(R); R.sit.choose('juster', R.vent.time);
+  R.run(20); assert.notEqual(R.sit.state.status, 'resolved');
+  R.vent.setSettings({ psupport: 6 });
+  assert.ok(untilResolved(R, 60));
+});
+
+test('(S)CMV+: når pasienten slutter å trigge, faller frekvensen til innstilt rate; rate opp eller sedasjon ned løser', () => {
+  let R = rig(SITUATIONS.find((s) => s.id === 'scmv-slutter-trigge'));
+  R.vent.run(30); R.sit.start(R.vent.time); R.run(60);
+  assert.equal(Math.round(R.vent.measurements.fTotal), 18);
+  R.run(120);
+  assert.equal(Math.round(R.vent.measurements.fTotal), 12, 'faller til gulvet');
+  assert.ok(R.vent.measurements.expMinVol < 6.5);
+  assert.notEqual(R.sit.state.status, 'resolved');
+  toActions(R); R.sit.choose('juster', R.vent.time); R.vent.setSettings({ rate: 16 });
+  assert.ok(untilResolved(R, 60), 'løst med rate 16');
+  R = rig(SITUATIONS.find((s) => s.id === 'scmv-slutter-trigge'));
+  R.vent.run(30); R.sit.start(R.vent.time); R.run(180); toActions(R);
+  assert.equal(R.sit.choose('sedasjonNed', R.vent.time).kind, 'riktig');
+  assert.ok(untilResolved(R, 150), 'løst når han trigger igjen');
+  R.run(30);
+  assert.ok(R.vent.measurements.fTotal >= 16, `trigger igjen: f ${R.vent.measurements.fTotal}`);
+});
+
+test('PCV+ ved ARDS: stivere lunge gir lavt Vt og SpO2; høyere rate, PEEP og O2 med drivtrykk ≤ 15 løser', () => {
+  const R = rig(SITUATIONS.find((s) => s.id === 'pcv-ards-vt-faller'));
+  R.vent.run(30); R.sit.start(R.vent.time); R.run(200);
+  const m = R.vent.measurements;
+  assert.ok(m.vtPerKg < 4.6 && m.expMinVol < 6.5, `Vt/IBW ${m.vtPerKg}, MV ${m.expMinVol}`);
+  assert.notEqual(R.sit.state.status, 'resolved');
+  toActions(R); R.sit.choose('juster', R.vent.time);
+  R.vent.setSettings({ pcontrol: 22, rate: 28, peep: 12, fio2: 70 }); R.run(40);
+  assert.notEqual(R.sit.state.status, 'resolved', 'drivtrykk over 15 løser ikke');
+  R.vent.setSettings({ pcontrol: 15 });
+  assert.ok(untilResolved(R, 90), 'løst med ΔP 15, rate 28, PEEP 12, O2 70');
+});
+
+test('KOLS i SPONT: sekret gir lavt Vt og høy frekvens; suging løser', () => {
+  const R = rig(SITUATIONS.find((s) => s.id === 'spont-sekret-kols'));
+  R.vent.run(30); R.sit.start(R.vent.time); R.run(160);
+  assert.ok(R.vent.measurements.vtPerKg < 4 && R.vent.measurements.fTotal >= 24);
+  toActions(R);
+  assert.equal(R.sit.choose('sug', R.vent.time).kind, 'riktig');
+  assert.ok(untilResolved(R, 90));
+});
+
+test('valgflyt: «Juster respiratoren» vises bare én gang, og ventepausen kan hoppes over', () => {
+  const R = rig(SITUATIONS.find((s) => s.id === 'avvenning-utmattelse'));
+  R.vent.run(30); R.sit.start(R.vent.time); R.run(160); toActions(R);
+  const ids = R.sit.decision.options.map((o) => o.id);
+  assert.equal(ids.filter((id) => id === 'juster').length, 1);
+  assert.equal(ids.length, 5);
+  R.sit.choose(ids.find((id) => id !== 'juster'), R.vent.time);
+  assert.ok(R.sit.nextDecisionIn(R.vent.time) > 2, 'pause før neste valg');
+  R.sit.skipWait(R.vent.time); R.run(1);
+  assert.ok(R.sit.decision, 'valg tilgjengelig straks etter «Gå videre nå»');
 });

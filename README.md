@@ -59,13 +59,18 @@ ikke når du justerer den:
 - **Pasientmonitor** øverst: SpO2, puls, blodtrykk, RF og temperatur.
 - **Pasient**: profil (normal, ARDS, obstruktiv, restriktiv), mekanikk, egenpust,
   gassutveksling (shunt, rekrutterbarhet). Høyde og kjønn stilles på respiratoren.
-- **Caser**: 13 falske pasienter, nummerert «Case 1» til «Case 13» så navnet ikke røper
-  hva som skjer (det vises først i oppsummeringen). Du får pasientinformasjon,
+- **Caser**: 19 falske pasienter, nummerert «Case 1» til «Case 19» så navnet ikke røper
+  hva som skjer (det vises først i oppsummeringen). Case 14–19 har lett sederte pasienter som
+  trigger selv, i SPONT, (S)CMV+ og PCV+: utmattelse under avvenning, autotrigging av
+  kondensvann, overassistanse, pasient som slutter å trigge etter mer sedasjon, fallende
+  tidevolum i PCV+ ved ARDS, og sekret hos KOLS-pasient i trykkstøtte. Innstillingene og
+  tiltakene bygger på kildene i KILDER.md. Du får pasientinformasjon,
   observasjoner, beskjeder fra kollega, monitor og respirator i en meldingsfeed, og valg på
   løpende bånd: først to runder undersøkelser (1 av 5, f.eks. lytt, se på tube, sjekk krets,
   blodgass, inspiratorisk hold), så tiltak (1 av 5) med noen sekunders pause mellom valgene
   så du rekker å observere. Alarmerer respiratoren, kommer første valg etter 2 s; avslører en
-  undersøkelse årsaken, går du rett til tiltak etter 3 s. Etter tiltaket viser panelet hva som
+  undersøkelse årsaken, går du rett til tiltak etter 3 s. Du kan alltid hoppe over ventepausen
+  («Gå videre nå») og undersøkelsesrundene («Gå rett til tiltak»). Etter tiltaket viser panelet hva som
   gjenstår (verdiene må være innenfor målet i 10 s). «Juster respiratoren» er alltid ett av tiltakene; velger du det
   der det er riktig, får du ingen flere alternativer og må gjøre justeringen selv på
   skjermen. Riktig tiltak løser casen når målingene har holdt seg normale i 15 s.

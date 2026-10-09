@@ -34,6 +34,8 @@ Status: alle fem faser ferdig. Oppføringer merket UVERIFISERT bør sjekkes mot 
 - Pasientinnsats Pmus modelleres som halv sinus over nevral inspirasjonstid (core/sim/patientEffort.js). Vanlig forenkling i simulatorer; ingen klinisk kilde.
 - Trykkstyrt steg integreres eksakt (eksponentielt) per tidssteg på 5 ms.
 - SPONT-trigging beregnes fra hvor mye pasienten «trekker» under PEEP; flowtrigger sammenlikner dette delt på R med innstilt L/min.
+- VTI regnes som netto inspirert volum: slipper pasienten innsatsen midt i et trykkregulert pust, kan volum gå tilbake i kretsen (aktiv ekspirasjonsventil), og det trekkes fra. Dermed er VTI ≈ VTE uten lekkasje, og APV-regulatoren sikter på volumet som faktisk blir i lungen.
+- Triggerstøy (kondensvann, lekkasje) modelleres som korte flowstøt på 0,25 s hvert 1,2–2,7 s under ekspirasjonen; er støyen større enn innstilt flowtrigger (eller tilsvarende trykkfall ved trykktrigger), autotrigger respiratoren.
 - (S)CMV+ (APVcmv) er modellert som trykkontroll der ΔPinsp justeres ±3 cmH2O per pust (maks) mot innstilt Vt, mellom 5 cmH2O og Plimit − PEEP. Hamiltons faktiske regulator er ikke offentlig beskrevet; at APV er trykkregulert med volummål og begrenses av Plimit = Pmax − 10 er bekreftet i håndboken. Den gamle flowstyrte (S)CMV beholdes for undervisning og tester.
 
 ## Gassutveksling i respiratorsimulatoren (core/physiology/gasExchange.js, core/sim/gasModel.js)
@@ -60,6 +62,19 @@ er konstruert. Hendelsenes effektstørrelser (f.eks. resistance × 6 ved biting,
 shunt + 0,22 ved derekruttering) er pedagogiske valg, UVERIFISERT. De kliniske funnene i ledetrådene
 (ensidig respirasjonslyd ved tube i hovedbronkus, hypersonor perkusjon og halsvenestuvning ved
 trykkpneumothorax, rhonchi ved sekret) er standard klinisk undersøkelseslære.
+
+### Caser 14–19: lett sederte pasienter som trigger selv
+
+| Hva | Verdi brukt | Kilde |
+|---|---|---|
+| Trykkstøtte for lett sedert pasient | Psupport 8–12 over PEEP 5–6, O2 30–35 %, ETS 25 %, flowtrigger 2 l/min, apnétid 20 s | Lærebok: PSV startes typisk 10–15 cmH2O og individualiseres; mål Vt 6–8 ml/kg IBW ([Pressure Support: Settings and How to Set Them](https://ecampusontario.pressbooks.pub/mechanicalventilators/chapter/pressure-support-settings-and-how-to-set-them/)). Trigger/apnétid er Hamiltons standard. |
+| Utmattelse under avvenning (case 14) | RSB = f/Vt > 105 /min/l som tegn på mislykket spontanpust; tiltak: mer støtte eller hvile på kontrollert modus | Yang & Tobin, *N Engl J Med* 1991;324:1445–50 (RSBI 105); AARC 2024 SBT-retningslinje (SBT med PS 5–8 eller uten) ([AARC Clinical Practice Guideline](https://journals.sagepub.com/doi/ref/10.4187/respcare.11735)). |
+| Autotrigging (case 15) | Årsaker: kondens i slangen, lekkasje i krets/cuff, hjerteoscillasjoner, for følsom trigger. Tiltak: tøm kondens, tett lekkasje, mindre følsom trigger eller trykktrigger. Tegn: høy frekvens uten egeninnsats, lav PetCO2, respiratorisk alkalose | [LITFL: Auto Triggering of the Ventilator](https://litfl.com/auto-triggering-of-the-ventilator/) |
+| Overassistanse (case 16) | Store Vt (> 8 ml/kg), lav frekvens (< 12), hypokapni, ineffektive pusteforsøk; senk trykkstøtten til Vt 6–8 ml/kg | Thille et al. 2008 (lavere Vt/trykkstøtte fjernet ineffektiv trigging hos 2/3), gjengitt i [Patient-ventilator asynchrony review](https://healthmanagement.org/pdf/article/patient-ventilator-asynchrony); lærebok over (RR < 12 tyder på for høy støtte). |
+| (S)CMV+ uten trigging (case 17) | Innstilt rate er et gulv; den må gi akseptabelt minuttvolum alene når pasienten slutter å trigge | Følger av modusdefinisjonen (HAMILTON-C6 brukerhåndbok, (S)CMV+/APVcmv). RASS-mål for sedasjon er standard intensivpraksis. |
+| PCV+ ved ARDS (case 18) | Vt faller når compliance faller; hold drivtrykk ≤ 15 cmH2O, øk frekvens (opp mot 30–35), godta moderat hyperkapni, bedre oksygenering med PEEP/O2 | ARDS Network, *N Engl J Med* 2000;342:1301–8 (Vt 6 ml/kg, Pplat ≤ 30, rate opp til 35); Amato et al., *N Engl J Med* 2015;372:747–55 (drivtrykk). |
+| Sekret hos KOLS i trykkstøtte (case 19) | I trykkstøtte gir økt motstand lavere Vt og høyere frekvens (trykket er begrenset); ETS 30–40 % hos KOLS for kortere inspirasjon | Følger av trykkstøttens virkemåte; ETS-anbefalingen er vanlig praksis og Hamiltons egne råd, UVERIFISERT mot primærkilde. |
+| Effektstørrelser | utmattelse Pmus 5→3 cmH2O og f 16→32; kondensstøy 4 l/min; compliance ×1,6 ved bedring; propofol gir Pmus 0; ARDS compliance ×0,55 og shunt + 0,15; sekret R × 1,7 | Pedagogiske valg, UVERIFISERT. |
 
 ## Lyd (core/audio/ventSounds.js)
 
