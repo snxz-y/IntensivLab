@@ -126,7 +126,7 @@ export function mountRespirator(container, ctx) {
   }
 
   function withGas(m) {
-    return { ...m, spo2: gas.state.spo2 * 100, petco2: gas.petco2, paco2: gas.state.paco2, pao2: gas.state.pao2 };
+    return { ...m, spo2: gas.state.spo2 * 100, petco2: vent.disconnected ? 0 : gas.petco2, paco2: gas.state.paco2, pao2: gas.state.pao2 };
   }
 
   function updateMMP(mRaw) {
@@ -493,7 +493,7 @@ export function mountRespirator(container, ctx) {
     if (S) {
       const elapsed = Math.max(0, vent.time - S.sit.state.tStart);
       body.append(h('div', { class: 'task-brief' }, h('h3', {}, S.def.title), h('p', {}, S.def.vignette),
-        h('p', { class: 'muted' }, `Følg med på kurver, måleverdier og alarmer. Undersøk pasienten og sett inn tiltak når noe skjer. Tid: ${fmt(elapsed, 0)} s`)));
+        h('p', { class: 'muted' }, 'Følg med på kurver, måleverdier og alarmer. Undersøk pasienten og sett inn tiltak når noe skjer. Tid: ', h('span', { id: 'sit-time' }, `${fmt(elapsed, 0)} s`))));
       const undersok = Object.entries(ACTIONS).filter(([, a]) => a.kind === 'undersok');
       const tiltak = Object.entries(ACTIONS).filter(([, a]) => a.kind === 'tiltak');
       const act = (id) => {
@@ -686,6 +686,7 @@ export function mountRespirator(container, ctx) {
         const status = ui.situation.sit.tick(vent.time, { m: vent.measurements, gas: gas.state, settings: vent.settings });
         if (status === 'resolved') finishSituation();
       }
+      if (ui.situation) { const el = document.getElementById('sit-time'); if (el) el.textContent = `${fmt(Math.max(0, vent.time - ui.situation.sit.state.tStart), 0)} s`; }
       if (sec % 2 === 0) renderStatus();
     }
     ui.raf = requestAnimationFrame(frame);

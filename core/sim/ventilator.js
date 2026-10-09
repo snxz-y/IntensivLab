@@ -244,6 +244,7 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
   }
 
   function triggerCheck(pmus) {
+    if (disconnected) return false; // ingen flow/trykk å trigge på i en åpen krets
     if (t - expStart < MIN_EXP_BEFORE_TRIGGER) return false;
     const pdrop = pmus - (lung.elasticPressure - s.peep); // trykk pasienten trekker under PEEP
     if (pdrop <= 0) return false;
