@@ -158,6 +158,29 @@ export function step3(v, primary = step2(v), hint = null) {
   };
 }
 
+export const SIMPLE_COMP_LABELS = {
+  ukompensert: 'Ukompensert: den kompenserende verdien er fortsatt normal',
+  delvis: 'Delvis kompensert: den kompenserende verdien har endret seg, men pH er fortsatt unormal',
+  fullt: 'Fullt kompensert: pH er normal, begge verdiene er unormale',
+  blandet: 'Blandet forstyrrelse: begge verdiene trekker pH samme vei',
+};
+
+/**
+ * Trinn 3, forenklet (sykepleiernivå): ukompensert / delvis / fullt kompensert / blandet.
+ * Den kompenserende verdien er PaCO2 ved metabolsk og HCO3 ved respiratorisk forstyrrelse.
+ */
+export function step3Simple(v, primary = step2(v)) {
+  if (primary === 'normal') return 'ikke-aktuelt';
+  if (primary.startsWith('blandet')) return 'blandet';
+  const metabolic = primary.startsWith('met');
+  const compNormal = metabolic
+    ? v.pco2 >= REF.pco2.low && v.pco2 <= REF.pco2.high
+    : v.hco3 >= REF.hco3.low && v.hco3 <= REF.hco3.high;
+  if (compNormal) return 'ukompensert';
+  if (step1(v) === 'normal') return 'fullt';
+  return 'delvis';
+}
+
 /** Trinn 4: anion gap med albuminkorreksjon. */
 export function step4(v) {
   const ag = round(anionGap(v.na, v.cl, v.hco3), 1);
@@ -206,5 +229,5 @@ export function interpret(v, hint = null) {
   const s4 = step4(v);
   const s5 = step5(v, s4);
   const s6 = step6(v);
-  return { step1: s1, step2: s2, step2Accepted, step3: s3, step4: s4, step5: s5, step6: s6 };
+  return { step1: s1, step2: s2, step2Accepted, step3: s3, step3Simple: step3Simple(v, s2), step4: s4, step5: s5, step6: s6 };
 }

@@ -175,3 +175,14 @@ input[type=range]::-moz-range-thumb {
 .badge.accent { color: var(--accent); border-color: var(--accent); }
 
 .placeholder { padding: 40px 20px; text-align: center; color: var(--fg-muted); border: 1px dashed var(--border); border-radius: var(--radius); }
+
+/* Stepper, ett trinn om gangen */
+.stepper.paged .step { display: none; }
+.stepper.paged .step.visible { display: block; }
+.step-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.step-nav-label { color: var(--fg-muted); font-size: 0.85rem; text-align: center; }
+.step-dots { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.step-dot { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border); background: var(--bg-elev); cursor: pointer; padding: 0; }
+.step-dot.done { background: var(--bg-elev-2); border-color: var(--fg-faint); }
+.step-dot.current { background: var(--accent-strong); border-color: var(--accent-strong); }
+.step-dot.locked { opacity: 0.35; cursor: default; }

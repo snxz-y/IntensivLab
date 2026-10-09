@@ -3,7 +3,27 @@
 .bg-head { display: flex; align-items: center; gap: var(--gap); flex-wrap: wrap; }
 .bg-head h1 { margin: 0; flex: 1 1 auto; }
 .bg-grid { display: grid; grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); gap: var(--gap); align-items: start; }
-@media (max-width: 900px) { .bg-grid { grid-template-columns: 1fr; } }
+.bg-case { position: sticky; top: 104px; max-height: calc(100vh - 120px); overflow: auto; }
+/* Kompakt verdivisning for smale skjermer */
+.vals-compact { display: none; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.vals-compact .vc { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px 8px; display: grid; }
+.vals-compact .vc-label { font-size: 0.72rem; color: var(--fg-muted); }
+.vals-compact .vc-value { font-family: var(--mono); font-weight: 700; font-size: 1.05rem; }
+.vals-compact .vc.abn .vc-value { color: var(--warn); }
+.vals-compact .vc-unit { font-size: 0.68rem; color: var(--fg-faint); }
+.vals-compact .flag { font-weight: 800; margin-left: 2px; }
+.vals-compact .flag.høy { color: var(--danger); }
+.vals-compact .flag.lav { color: var(--accent); }
+@media (max-width: 900px) {
+  .bg-grid { grid-template-columns: 1fr; }
+  .bg-case { position: static; max-height: none; }
+  .bg-case .vals, .bg-case .hint { display: none; }
+  .vals-compact { display: grid; }
+  .vignette { font-size: 0.95rem; margin-bottom: 8px; }
+  .bg-head h1 { font-size: 1.2rem; }
+}
+.fordypning { margin-top: 8px; }
+.fordypning summary { cursor: pointer; color: var(--accent); font-size: 0.9rem; }
 
 .vignette { font-size: 1.02rem; line-height: 1.5; }
 .vals { width: 100%; border-collapse: collapse; font-size: 0.95rem; }

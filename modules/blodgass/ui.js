@@ -10,9 +10,9 @@ import { toast } from '../../core/ui/toast.js';
 import { fmt, kPaToMmHg } from '../../core/units.js';
 import { REF, flag } from '../../core/physiology/references.js';
 import { generateCase } from './generator.js';
-import { PRIMARY_LABELS, COMP_LABELS, DELTA_LABELS, PF_LABELS } from './interpret.js';
+import { PRIMARY_LABELS, COMP_LABELS, SIMPLE_COMP_LABELS, DELTA_LABELS, PF_LABELS } from './interpret.js';
 import { LEVELS, CAUSES, DISORDER_TYPES } from './vignettes.js';
-import { emptyStats, recordCase, accuracy, weakest, selectionWeights, suggestLevel, pickLevel, STEP_NAMES } from './stats.js';
+import { emptyStats, recordCase, accuracy, weakest, selectionWeights, suggestLevel, pickLevel, STEP_NAMES, STATS_VERSION } from './stats.js';
 
 const VALUE_ROWS = [
   { group: 'Blodgass (arteriell)' },
@@ -31,7 +31,8 @@ const dir = (key, v) => ({ høy: 'høy', lav: 'lav', normal: 'normal' })[flag(ke
 
 export function mountBlodgass(container, ctx) {
   const { storage } = ctx;
-  let stats = storage.get('blodgass:stats', null) ?? emptyStats();
+  let stats = storage.get('blodgass:stats', null);
+  if (!stats || stats.version !== STATS_VERSION) stats = emptyStats();
   let levelChoice = storage.get('blodgass:level', 'adaptiv');
   const saveStats = () => storage.set('blodgass:stats', stats);
 
@@ -55,6 +56,7 @@ export function mountBlodgass(container, ctx) {
   container.append(root);
 
   let current = null;
+  let stepper = null;
 
   // ---------- Kasus ----------
   function newCase() {
@@ -81,11 +83,22 @@ export function mountBlodgass(container, ctx) {
         h('td', { class: 'ref' }, refText),
       ));
     }
+    const compact = h('div', { class: 'vals-compact' });
+    for (const r of VALUE_ROWS) {
+      if (r.group) continue;
+      const ref = REF[r.key];
+      const f = flag(r.key, v[r.key]);
+      compact.append(h('div', { class: `vc ${f !== 'normal' ? 'abn' : ''}` },
+        h('span', { class: 'vc-label' }, r.label),
+        h('span', { class: 'vc-value' }, r.key === 'fio2' ? fmt(v.fio2 * 100, 0) : fmt(v[r.key], ref.decimals), h('span', { class: `flag ${f}` }, f === 'høy' ? '↑' : f === 'lav' ? '↓' : '')),
+        h('span', { class: 'vc-unit' }, r.key === 'fio2' ? '%' : ref.unit)));
+    }
     clear(caseArea);
     caseArea.append(
-      panel({ title: `Kasus · ${LEVELS.find((l) => l.id === c.level)?.name ?? ''}` },
+      panel({ title: `Kasus · ${LEVELS.find((l) => l.id === c.level)?.name ?? ''}`, class: 'bg-case' },
         h('p', { class: 'vignette' }, c.vignette),
         h('table', { class: 'vals' }, h('tbody', {}, ...rows)),
+        compact,
         h('p', { class: 'hint', style: { marginTop: '8px' } }, 'Referanseområder er typiske voksenverdier; se KILDER.md. Anion gap regnes uten kalium.'),
       ),
     );
@@ -139,11 +152,12 @@ export function mountBlodgass(container, ctx) {
   function renderSteps(c) {
     const v = c.values;
     const k = c.key;
-    const pco2mm = kPaToMmHg(v.pco2);
+    
+    const fordypning = (title, ...content) => h('details', { class: 'fordypning' }, h('summary', {}, title), ...content);
 
     const steps = [
       {
-        title: '1. Acidemi eller alkalemi?',
+        title: 'Acidemi eller alkalemi?',
         render(body, api) {
           const ch = choices([{ id: 'acidemi', label: 'Acidemi (pH < 7,35)' }, { id: 'alkalemi', label: 'Alkalemi (pH > 7,45)' }, { id: 'normal', label: 'Normal pH (7,35–7,45)' }]);
           answerBlock(body, api, { inputs: [ch.el], evaluate: () => {
@@ -156,11 +170,11 @@ export function mountBlodgass(container, ctx) {
         },
       },
       {
-        title: '2. Primær forstyrrelse',
+        title: 'Primær forstyrrelse',
         render(body, api) {
           const opts = Object.entries(PRIMARY_LABELS).filter(([id]) => id !== 'normal').map(([id, label]) => ({ id, label }));
           const ch = choices(opts);
-          answerBlock(body, api, { inputs: [ch.el], evaluate: () => {
+          answerBlock(body, api, { inputs: [h('p', { class: 'hint' }, 'Hvilken verdi forklarer pH-avviket: PaCO2 (respiratorisk) eller HCO3 (metabolsk)?'), ch.el], evaluate: () => {
             const a = ch.get(); if (!a) return null;
             ch.lock(k.step2Accepted);
             const correct = k.step2Accepted.includes(a);
@@ -174,128 +188,75 @@ export function mountBlodgass(container, ctx) {
         },
       },
       {
-        title: '3. Forventet kompensasjon',
+        title: 'Kompensasjon',
         render(body, api) {
           const s3 = k.step3;
-          if (!s3.applicable) { body.append(P('Ingen primær forstyrrelse, ingen kompensasjon å vurdere.')); api.skip('Ikke aktuelt'); return; }
-          const isMet = s3.target === 'pco2';
-          const inputs = [];
-          let nExp, nAcute, nChronic;
-          if (isMet) {
-            inputs.push(h('p', { class: 'hint' }, `Primær: ${PRIMARY_LABELS[s3.basis]}. Regn ut forventet PaCO2 (i kPa; 1 kPa = 7,5 mmHg).`));
-            nExp = numField('Forventet PaCO2', 'kPa'); inputs.push(nExp.el);
-          } else {
-            inputs.push(h('p', { class: 'hint' }, `Primær: ${PRIMARY_LABELS[s3.basis]}. Regn ut forventet HCO3 ved akutt og ved kronisk forstyrrelse (PaCO2 ${fmt(v.pco2, 1)} kPa ≈ ${fmt(pco2mm, 0)} mmHg).`));
-            nAcute = numField('Forventet HCO3, akutt', 'mmol/L'); nChronic = numField('Forventet HCO3, kronisk', 'mmol/L');
-            inputs.push(nAcute.el, nChronic.el);
-          }
-          const verdictOpts = isMet
-            ? ['adekvat', 'tillegg-resp-acidose', 'tillegg-resp-alkalose']
-            : ['akutt', 'kronisk', 'delvis-kronisk', 'tillegg-met-acidose', 'tillegg-met-alkalose'];
-          const ch = choices(verdictOpts.map((id) => ({ id, label: COMP_LABELS[id] })));
-          inputs.push(h('p', { class: 'hint' }, 'Sammenlign med målt verdi og vurder:'), ch.el);
-          answerBlock(body, api, { inputs, evaluate: () => {
+          const want = k.step3Simple;
+          if (want === 'ikke-aktuelt') { body.append(P('Ingen primær forstyrrelse, ingen kompensasjon å vurdere.')); api.skip('Ikke aktuelt'); return; }
+          const metabolic = k.step2.startsWith('met');
+          const ch = choices(Object.entries(SIMPLE_COMP_LABELS).map(([id, label]) => ({ id, label })));
+          answerBlock(body, api, { inputs: [h('p', { class: 'hint' }, `Primær: ${PRIMARY_LABELS[k.step2]}. ${k.step2.startsWith('blandet') ? '' : `Den kompenserende verdien er ${metabolic ? 'PaCO2 (lungene justerer på minutter)' : 'HCO3 (nyrene bruker 2–5 døgn)'}.`} Hvordan ser kompensasjonen ut?`), ch.el], evaluate: () => {
             const a = ch.get(); if (!a) return null;
-            let numOk, explain;
-            if (isMet) {
-              const n = nExp.get(); if (n === null) return null;
-              numOk = n >= s3.low - 0.15 && n <= s3.high + 0.15;
-              nExp.mark(numOk);
-              const expMm = kPaToMmHg(s3.expected);
-              explain = [
-                calc(`${s3.rule}\n= ${fmt(expMm, 0)} ± 2 mmHg = ${fmt(s3.low, 1)}–${fmt(s3.high, 1)} kPa\nMålt PaCO2: ${fmt(v.pco2, 1)} kPa`),
-                P(s3.verdict === 'adekvat' ? 'Målt PaCO2 ligger innenfor forventet bånd: kompensasjonen er som forventet, og det er ingen tegn til en respiratorisk tilleggsforstyrrelse.'
-                  : s3.verdict === 'tillegg-resp-acidose' ? 'Målt PaCO2 er høyere enn forventet: lungene blåser ikke av så mye CO2 som de burde. Det er en respiratorisk acidose i tillegg.'
-                  : 'Målt PaCO2 er lavere enn forventet: pasienten hyperventilerer mer enn kompensasjonen tilsier. Det er en respiratorisk alkalose i tillegg.'),
-              ];
-            } else {
-              const na = nAcute.get(), nc = nChronic.get(); if (na === null || nc === null) return null;
-              const aOk = within(na, s3.acute.expected, 1.5), cOk = within(nc, s3.chronic.expected, 1.5);
-              numOk = aOk && cOk;
-              nAcute.mark(aOk); nChronic.mark(cOk);
-              const d = Math.abs(pco2mm - 40) / 10;
-              explain = [
-                calc(`ΔPaCO2 = |${fmt(pco2mm, 0)} − 40| / 10 = ${fmt(d, 2)} (per 10 mmHg)\nAkutt:   ${s3.acute.rule}\n         → ${fmt(s3.acute.expected, 1)} mmol/L\nKronisk: ${s3.chronic.rule}\n         → ${fmt(s3.chronic.expected, 1)} mmol/L\nMålt HCO3: ${fmt(v.hco3, 1)} mmol/L`),
-                P(explainResp(s3, c)),
-              ];
+            ch.lock([want]);
+            const correct = a === want;
+            const compVal = metabolic ? `PaCO2 ${fmt(v.pco2, 1)} kPa (${dir('pco2', v.pco2)})` : `HCO3 ${fmt(v.hco3, 1)} mmol/L (${dir('hco3', v.hco3)})`;
+            const explain = [];
+            if (want === 'blandet') explain.push(P(`Både PaCO2 og HCO3 trekker pH samme vei. Da er det ikke kompensasjon, men to forstyrrelser samtidig.`));
+            else if (want === 'ukompensert') explain.push(P(`${compVal} ligger i referanseområdet: kroppen har ennå ikke kompensert. ${metabolic ? 'Ved metabolsk forstyrrelse skjer dette vanligvis raskt, så en normal PaCO2 kan også bety at pasienten ikke klarer å kompensere.' : 'Typisk for en akutt respiratorisk forstyrrelse: nyrene trenger dager.'}`));
+            else if (want === 'delvis') explain.push(P(`${compVal} har beveget seg i kompenserende retning, men pH ${fmt(v.ph, 2)} er fortsatt utenfor 7,35–7,45: delvis kompensert.`));
+            else explain.push(P(`pH ${fmt(v.ph, 2)} er normal selv om ${compVal} er unormal: fullt kompensert. ${metabolic ? '' : 'Ved respiratorisk forstyrrelse betyr det en kronisk tilstand.'}`));
+            if (s3.applicable && !k.step2.startsWith('blandet')) {
+              const exp = s3.target === 'pco2'
+                ? `${s3.rule}. Forventet PaCO2 ${fmt(s3.low, 1)}–${fmt(s3.high, 1)} kPa, målt ${fmt(v.pco2, 1)}.`
+                : `Akutt: ${s3.acute.rule} → ${fmt(s3.acute.expected, 1)} mmol/L. Kronisk: ${s3.chronic.rule} → ${fmt(s3.chronic.expected, 1)} mmol/L. Målt ${fmt(v.hco3, 1)}.`;
+              explain.push(fordypning('Fordypning: forventet kompensasjon (legenivå)', calc(exp), P(COMP_LABELS[s3.verdict], s3.verdict.startsWith('tillegg') ? ' Det tyder på en tilleggsforstyrrelse.' : '')));
             }
-            ch.lock(s3.accepted);
-            const verdictOk = s3.accepted.includes(a);
-            const correct = numOk && verdictOk;
-            if (!numOk) explain.unshift(P(h('b', {}, 'Regnestykket: '), 'utenfor toleransen. Se utregningen under.'));
-            if (!verdictOk) explain.unshift(P(h('b', {}, 'Vurderingen: '), `fasit er «${COMP_LABELS[s3.verdict]}».`));
-            return { correct, explain, summary: COMP_LABELS[s3.verdict] };
+            return { correct, explain, summary: SIMPLE_COMP_LABELS[want].split(':')[0] };
           } });
         },
       },
       {
-        title: '4. Anion gap (albuminkorrigert)',
+        title: 'Anion gap',
         render(body, api) {
           const nAg = numField('Anion gap = Na − (Cl + HCO3)', 'mmol/L');
-          const nCorr = numField('Albuminkorrigert AG', 'mmol/L');
           const ch = choices([{ id: 'hoy', label: 'Høy anion gap (> 12)' }, { id: 'normal', label: 'Normal anion gap (≤ 12)' }]);
-          answerBlock(body, api, { inputs: [h('p', { class: 'hint' }, `Albumin ${v.albumin} g/L. Korreksjon: + 0,25 · (40 − albumin).`), nAg.el, nCorr.el, ch.el], evaluate: () => {
-            const a = ch.get(), ag = nAg.get(), corr = nCorr.get(); if (!a || ag === null || corr === null) return null;
-            const agOk = within(ag, k.step4.ag, 1), corrOk = within(corr, k.step4.agCorr, 1);
-            nAg.mark(agOk); nCorr.mark(corrOk);
+          answerBlock(body, api, { inputs: [h('p', { class: 'hint' }, `Na ${v.na}, Cl ${v.cl}, HCO3 ${fmt(v.hco3, 1)}. Høy anion gap betyr at det finnes syrer som ikke måles direkte (laktat, ketoner, toksiner, nyresvikt).`), nAg.el, ch.el], evaluate: () => {
+            const a = ch.get(), ag = nAg.get(); if (!a || ag === null) return null;
+            const agOk = within(ag, k.step4.ag, 1.5);
+            nAg.mark(agOk);
             const want = k.step4.high ? 'hoy' : 'normal';
             ch.lock([want]);
-            const correct = agOk && corrOk && a === want;
+            const correct = agOk && a === want;
             const explain = [
-              calc(`AG = ${v.na} − (${v.cl} + ${fmt(v.hco3, 1)}) = ${fmt(k.step4.ag, 1)} mmol/L\nAGkorr = ${fmt(k.step4.ag, 1)} + 0,25 · (40 − ${v.albumin}) = ${fmt(k.step4.agCorr, 1)} mmol/L`),
-              P(k.step4.high ? 'Korrigert AG > 12: det finnes umålte anioner (laktat, ketoner, sulfat/fosfat, toksiske syrer). ' : 'Korrigert AG ≤ 12: ingen umålte anioner av betydning. Ved metabolsk acidose betyr det hyperkloremisk acidose (tap av bikarbonat eller tilførsel av klorid). ',
-                k.step4.correctionApplied ? `Albuminkorreksjonen utgjør ${fmt(k.step4.agCorr - k.step4.ag, 1)} mmol/L; lav albumin skjuler ellers et høyt gap.` : 'Albumin er nær 40 g/L, så korreksjonen endrer lite.'),
+              calc(`AG = ${v.na} − (${v.cl} + ${fmt(v.hco3, 1)}) = ${fmt(k.step4.ag, 1)} mmol/L`),
+              P(k.step4.high ? 'Høy anion gap: det finnes umålte anioner (laktat, ketoner, sulfat/fosfat ved nyresvikt, toksiske syrer). ' : 'Normal anion gap: ingen umålte anioner av betydning. Ved metabolsk acidose betyr det tap av bikarbonat (diaré) eller tilførsel av klorid (mye NaCl). '),
             ];
-            return { correct, explain, summary: k.step4.high ? `Høy AG (${fmt(k.step4.agCorr, 0)})` : `Normal AG (${fmt(k.step4.agCorr, 0)})` };
+            if (k.step4.correctionApplied) explain.push(P(`Albumin er ${v.albumin} g/L. Lav albumin gir lavere anion gap, så korrigert gap er ${fmt(k.step4.agCorr, 1)} (+0,25 per g/L under 40). Vurderingen er gjort på korrigert verdi.`));
+            if (k.step5.applicable) explain.push(fordypning('Fordypning: delta ratio (legenivå)', calc(`Δratio = (AGkorr − 12)/(24 − HCO3) = (${fmt(k.step4.agCorr, 1)} − 12)/(24 − ${fmt(v.hco3, 1)}) = ${fmt(k.step5.ratio, 2)}`), P(DELTA_LABELS[k.step5.verdict])));
+            return { correct, explain, summary: k.step4.high ? `Høy AG (${fmt(k.step4.ag, 0)})` : `Normal AG (${fmt(k.step4.ag, 0)})` };
           } });
         },
       },
       {
-        title: '5. Delta ratio',
-        render(body, api) {
-          const nRatio = numField('Delta ratio = (AGkorr − 12)/(24 − HCO3)', '');
-          const ch = choices(Object.entries(DELTA_LABELS).map(([id, label]) => ({ id, label })));
-          answerBlock(body, api, { inputs: [h('p', { class: 'hint' }, 'Bare aktuelt ved høy anion gap. Velg «Ikke aktuelt» ellers.'), nRatio.el, ch.el], evaluate: () => {
-            const a = ch.get(); if (!a) return null;
-            const s5 = k.step5;
-            let numOk = true;
-            if (s5.applicable) {
-              const r = nRatio.get(); if (r === null) return null;
-              numOk = within(r, s5.ratio, 0.2); nRatio.mark(numOk);
-            }
-            ch.lock([s5.verdict]);
-            const correct = numOk && a === s5.verdict;
-            const explain = s5.applicable
-              ? [calc(`Δratio = (${fmt(k.step4.agCorr, 1)} − 12) / (24 − ${fmt(v.hco3, 1)}) = ${fmt(s5.ratio, 2)}`),
-                P(s5.verdict === 'ren-hoy-ag' ? 'Økningen i AG svarer omtrent til fallet i HCO3: én prosess, en ren høy-AG-acidose.'
-                  : s5.verdict === 'hoy-ag-pluss-met-alkalose' ? 'HCO3 har falt mindre enn AG har steget. Noe holder HCO3 oppe: en samtidig metabolsk alkalose (f.eks. oppkast) eller en kronisk respiratorisk acidose.'
-                  : s5.verdict === 'blandet-hoy-og-normal-ag' ? 'HCO3 har falt mer enn AG har steget. Det er et ekstra bikarbonattap eller kloridtilførsel i tillegg til høy-AG-acidosen.'
-                  : 'HCO3 har falt mye mer enn AG: normal-AG-acidosen dominerer.')]
-              : [P(`Korrigert AG er ${fmt(k.step4.agCorr, 1)} (≤ 12). Delta ratio brukes bare til å tolke en høy-AG-acidose, så den er ikke aktuell her.`)];
-            return { correct, explain, summary: s5.applicable ? `${fmt(s5.ratio, 2)}` : 'Ikke aktuelt' };
-          } });
-        },
-      },
-      {
-        title: '6. Oksygenering (P/F-ratio)',
+        title: 'Oksygenering (P/F-ratio)',
         render(body, api) {
           const nPf = numField('P/F = PaO2 / FiO2', 'kPa');
           const ch = choices(Object.entries(PF_LABELS).map(([id, label]) => ({ id, label })));
-          answerBlock(body, api, { inputs: [h('p', { class: 'hint' }, `PaO2 ${fmt(v.po2, 1)} kPa på FiO2 ${fmt(v.fio2, 2)}.`), nPf.el, ch.el], evaluate: () => {
+          answerBlock(body, api, { inputs: [h('p', { class: 'hint' }, `PaO2 ${fmt(v.po2, 1)} kPa på FiO2 ${fmt(v.fio2, 2)} (${fmt(v.fio2 * 100, 0)} %).`), nPf.el, ch.el], evaluate: () => {
             const a = ch.get(), pf = nPf.get(); if (!a || pf === null) return null;
-            const numOk = within(pf, k.step6.pf, 1.0); nPf.mark(numOk);
+            const numOk = within(pf, k.step6.pf, 1.5); nPf.mark(numOk);
             ch.lock([k.step6.grade]);
             const correct = numOk && a === k.step6.grade;
             const explain = [
               calc(`P/F = ${fmt(v.po2, 1)} / ${fmt(v.fio2, 2)} = ${fmt(k.step6.pf, 1)} kPa (= ${fmt(kPaToMmHg(k.step6.pf), 0)} mmHg)`),
-              P(`Gradering: ${PF_LABELS[k.step6.grade]}. `, k.step6.hypoxemic ? `PaO2 ${fmt(v.po2, 1)} kPa er under 8 kPa: hypoksemisk respirasjonssvikt.` : 'PaO2 er over 8 kPa.', ' Berlin-grensene gjelder strengt tatt bare ved PEEP ≥ 5, men P/F er nyttig som mål på oksygeneringssvikt også ellers. Ved hypoventilasjon faller PaO2 fordi alveolært PO2 faller, ikke nødvendigvis på grunn av lungesykdom.'),
+              P(`Gradering: ${PF_LABELS[k.step6.grade]}. `, k.step6.hypoxemic ? `PaO2 ${fmt(v.po2, 1)} kPa er under 8 kPa: hypoksemisk respirasjonssvikt.` : 'PaO2 er over 8 kPa.', ' Ved hypoventilasjon faller PaO2 fordi alveolært PO2 faller, ikke nødvendigvis på grunn av lungesykdom.'),
             ];
             return { correct, explain, summary: `${fmt(k.step6.pf, 0)} kPa, ${k.step6.grade}` };
           } });
         },
       },
       {
-        title: '7. Sannsynlige årsaker',
+        title: 'Sannsynlige årsaker',
         render(body, api) {
           const ch = choices(c.causeOptions, { multi: true });
           answerBlock(body, api, { inputs: [h('p', { class: 'hint' }, 'Velg alle som passer med vignetten og tallene.'), ch.el], evaluate: () => {
@@ -316,7 +277,8 @@ export function mountBlodgass(container, ctx) {
     ];
 
     clear(stepArea);
-    const stepper = createStepper({ steps, onComplete: (results) => finishCase(c, results) });
+    stepper?.destroy();
+    stepper = createStepper({ steps, paged: true, onComplete: (results) => finishCase(c, results) });
     stepArea.append(stepper.el);
   }
 
@@ -346,16 +308,6 @@ export function mountBlodgass(container, ctx) {
     if (p === 'blandet-acidose') return 'Acidemi der både PaCO2 er høy og HCO3 er lav: begge trekker pH ned. Ingen av dem kan være kompensasjon for den andre, så dette er en blandet acidose.';
     if (p === 'blandet-alkalose') return 'Alkalemi der både PaCO2 er lav og HCO3 er høy: begge trekker pH opp. Blandet alkalose.';
     return 'Alle verdier innenfor referanseområdet.';
-  }
-
-  function explainResp(s3, c) {
-    const vd = s3.verdict;
-    const chronicHint = c.chronic ? 'Sykehistorien beskriver en langvarig tilstand, så kronisk er den riktige lesningen.' : 'Sykehistorien beskriver en akutt tilstand.';
-    if (vd === 'akutt') return `Målt HCO3 passer med akutt forventning: nyrene har ikke rukket å kompensere (det tar 2–5 dager). ${s3.ambiguous ? 'Akutt og kronisk forventning overlapper her, så tallene alene kan ikke skille dem. ' + chronicHint : ''}`;
-    if (vd === 'kronisk') return `Målt HCO3 passer med kronisk forventning: nyrene har holdt tilbake bikarbonat over dager. ${s3.ambiguous ? 'Akutt og kronisk forventning overlapper her, så tallene alene kan ikke skille dem. ' + chronicHint : ''}`;
-    if (vd === 'delvis-kronisk') return 'Målt HCO3 ligger mellom akutt og kronisk forventning: kompensasjonen er i gang, men ikke fullført (typisk etter 1–3 døgn).';
-    if (vd === 'tillegg-met-acidose') return 'Målt HCO3 er lavere enn både akutt og kronisk forventning. Det er en metabolsk acidose i tillegg til den respiratoriske forstyrrelsen. Sjekk anion gap i neste trinn.';
-    return 'Målt HCO3 er høyere enn både akutt og kronisk forventning. Det er en metabolsk alkalose i tillegg (f.eks. diuretika, oppkast eller posthyperkapnisk).';
   }
 
   function explainCauses(c) {
@@ -400,5 +352,5 @@ export function mountBlodgass(container, ctx) {
 
   // Start
   newCase();
-  return () => { root.remove(); };
+  return () => { stepper?.destroy(); root.remove(); };
 }

@@ -5,7 +5,7 @@ import {
   deltaRatio, interpretDeltaRatio, expectedCompensation, pfRatio, gradePf, alveolarPo2, isHypoxemic, CO2_SOLUBILITY_KPA,
 } from '../core/physiology/acidbase.js';
 import { mmHgToKPa } from '../core/units.js';
-import { step1, step2, step3, step4, step5, step6, interpret, acceptedPrimaries } from '../modules/blodgass/interpret.js';
+import { step1, step2, step3, step3Simple, step4, step5, step6, interpret, acceptedPrimaries } from '../modules/blodgass/interpret.js';
 
 const near = (a, b, tol) => assert.ok(Math.abs(a - b) <= tol, `${a} ≠ ${b} (±${tol})`);
 
@@ -113,4 +113,11 @@ test('tolkning: klassiske kasus', () => {
 
   const normal = { ph: 7.40, pco2: 5.3, po2: 12.5, hco3: 24.5, na: 140, cl: 104, albumin: 42, fio2: 0.21 };
   assert.equal(interpret(normal).step2, 'normal');
+
+  // forenklet kompensasjonsvurdering
+  assert.equal(step3Simple(dka), 'delvis');      // PaCO2 lav (kompenserer), pH fortsatt lav
+  assert.equal(step3Simple(kols), 'fullt');      // pH normal, HCO3 høy
+  assert.equal(step3Simple(stans), 'blandet');
+  assert.equal(step3Simple({ ...dka, pco2: 5.0 }), 'ukompensert'); // PaCO2 i referanseområdet
+  assert.equal(interpret(kols).step3Simple, 'fullt');
 });

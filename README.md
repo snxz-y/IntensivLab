@@ -40,9 +40,11 @@ Hvert kasus genereres fra en underliggende forstyrrelse, så pH, PaCO2 og HCO3 a
 henger sammen (Henderson–Hasselbalch). Tolkningen gjøres trinn for trinn, og neste
 trinn vises først når du har svart:
 
-1. acidemi/alkalemi, 2. primær forstyrrelse, 3. forventet kompensasjon (du regner),
-4. anion gap albuminkorrigert (du regner), 5. delta ratio ved høy AG, 6. P/F-ratio i kPa,
-7. sannsynlige årsaker.
+1. acidemi/alkalemi, 2. primær forstyrrelse, 3. kompensasjon (ukompensert, delvis,
+fullt, blandet), 4. anion gap (du regner), 5. P/F-ratio i kPa (du regner),
+6. sannsynlige årsaker. Ett trinn vises om gangen, med piler (også piltaster) for å
+bla tilbake. Forventet kompensasjon etter formel og delta ratio ligger som
+«Fordypning» i tilbakemeldingen, ikke som krav.
 
 Ved feil vises regnestykket og resonnementet for trinnet. Nivå kan velges (enkle,
 kompenserte, blandede) eller settes til «Adaptiv», som velger nivå og forstyrrelse ut

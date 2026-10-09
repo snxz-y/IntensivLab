@@ -10,15 +10,16 @@ import { SCENARIOS } from './vignettes.js';
 export const STEP_NAMES = {
   1: 'Acidemi / alkalemi',
   2: 'Primær forstyrrelse',
-  3: 'Forventet kompensasjon',
+  3: 'Kompensasjon',
   4: 'Anion gap',
-  5: 'Delta ratio',
-  6: 'Oksygenering',
-  7: 'Årsaker',
+  5: 'Oksygenering',
+  6: 'Årsaker',
 };
 
+export const STATS_VERSION = 2;
+
 export function emptyStats() {
-  return { version: 1, cases: 0, steps: {}, types: {}, levels: {}, scenarios: {}, history: [] };
+  return { version: STATS_VERSION, cases: 0, steps: {}, types: {}, levels: {}, scenarios: {}, history: [] };
 }
 
 function bump(map, key, correct) {
