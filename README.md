@@ -12,7 +12,7 @@ Nettbasert læringsplattform for intensivsykepleie, bygd som statisk app
 | Modul | Status |
 |---|---|
 | Respiratorsimulator (`#/respirator`) | ferdig (fase 3) |
-| Blodgasstrener (`#/blodgass`) | generator og tester ferdig (fase 4), UI i fase 5 |
+| Blodgasstrener (`#/blodgass`) | ferdig (fase 5) |
 
 ## Respiratorsimulatoren
 
@@ -26,6 +26,21 @@ og innstillingene som knapper nederst. Trykk på en innstilling for å endre den
 - Oppgaver: før hver endring må du forutsi hva som skjer med en måleverdi. Fasit
   hentes ved å simulere endringen til steady state i en kopi av respiratoren.
 - Fremdrift (løste oppgaver, forutsigelser) lagres lokalt i nettleseren.
+
+## Blodgasstreneren
+
+Hvert kasus genereres fra en underliggende forstyrrelse, så pH, PaCO2 og HCO3 alltid
+henger sammen (Henderson–Hasselbalch). Tolkningen gjøres trinn for trinn, og neste
+trinn vises først når du har svart:
+
+1. acidemi/alkalemi, 2. primær forstyrrelse, 3. forventet kompensasjon (du regner),
+4. anion gap albuminkorrigert (du regner), 5. delta ratio ved høy AG, 6. P/F-ratio i kPa,
+7. sannsynlige årsaker.
+
+Ved feil vises regnestykket og resonnementet for trinnet. Nivå kan velges (enkle,
+kompenserte, blandede) eller settes til «Adaptiv», som velger nivå og forstyrrelse ut
+fra statistikken din. Statistikk per trinn, forstyrrelse og nivå ligger under
+«Statistikk», og neste kasus vektes mot det du er svakest i.
 
 ## Kjøre lokalt
 

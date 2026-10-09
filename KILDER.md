@@ -4,7 +4,7 @@ Alle formler og referanseområder i IntensivLab skal kunne spores hit.
 Oppføringer merket **UVERIFISERT** har jeg ikke kunnet belegge med en kilde
 jeg er sikker på, og bør sjekkes mot pensum før de stoles på.
 
-Status: fase 4 (blodgassgenerator).
+Status: alle fem faser ferdig. Oppføringer merket UVERIFISERT bør sjekkes mot pensum.
 
 ## Enheter (core/units.js)
 
