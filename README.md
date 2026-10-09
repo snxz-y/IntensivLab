@@ -16,14 +16,17 @@ Nettbasert læringsplattform for intensivsykepleie, bygd som statisk app
 
 ## Respiratorsimulatoren
 
-Skjermen til venstre er lagt opp etter HAMILTON-C6s hovedskjerm (brukerhåndbok kap. 2.2.2):
-modus øverst til venstre, fargekodet meldingslinje med Audio pause, MMP-kolonne til venstre
-med alarmgrenser, kurver i midten med valgfrie intelligente paneler (Dynamic Lung og
-Vent Status, som på C6) eller sløyfer, vindusknappene Alarmer, Kontroller (faner Grunn,
-Pasient, Apné), Monitorering, Grafikk, Verktøy, Hendelser og System til høyre, hurtigknapper
-(manuell pust, O2-anrikning, lyd, standby) og hovedkontrollene for aktiv modus nederst.
-Trykk på modusfeltet for moduslisten: (S)CMV+, PCV+ og SPONT er simulert; de andre
-C6-modiene står oppført, men er grå. Trykk på en kontroll eller en MMP for å endre den.
+Skjermen til venstre er bygget etter HAMILTON-C6s hovedskjerm (sammenlignet mot skjermbilde fra
+Hamiltons egen C6-simuleringsprogramvare): modusfelt med pasientikon øverst til venstre, svart
+meldingslinje (rød/gul ved alarm), MMP-kolonne til venstre med alarmgrensene oppe til venstre og
+store verdier til høyre, kurver (Paw gul, Flow magenta) med tidsakse, og under dem de to
+intelligente panelene Dynamic Lung og Vent Status på blå bunn (eller sløyfer, eller tre kurver,
+velges under Grafikk). Høyrekolonnen har Modus øverst, ringknapper for modusens hovedkontroller
+og knappene Kontroller og Alarmer. Nederst ligger hurtigknapper (manuell pust, O2-anrikning,
+lyd, standby), vindusknappene Monitorering, Grafikk, Verktøy, Hendelser og System, og
+dato/klokke. Kontroller-vinduet viser alle kontroller som ringknapper: trykk på en og juster
+med −/+ eller glidebryteren. (S)CMV+, PCV+ og SPONT er simulert; de andre C6-modiene står
+oppført i moduslisten, men er grå.
 
 Sidepanelet til høyre (under på smale skjermer) ligger utenfor respiratoren og forsvinner
 ikke når du justerer den:

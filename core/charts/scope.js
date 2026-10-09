@@ -4,13 +4,13 @@
  */
 import { setupCanvas, scaleLinear, ticks, drawGrid } from './canvas.js';
 
-export function createScope(wrap, { label = '', unit = '', color = '#fff', sweepSeconds = 8, range = [0, 40], height = 140, bins = 800, fill = false, zeroLine = true } = {}) {
+export function createScope(wrap, { label = '', unit = '', color = '#fff', sweepSeconds = 8, range = [0, 40], height = 140, bins = 800, fill = false, zeroLine = true, xAxis = false, textColor = '#6b7784', markerStyle = 'dash' } = {}) {
   const c = setupCanvas(wrap, { height });
   const values = new Float64Array(bins).fill(NaN);
   let lastIdx = -1;
   let [min, max] = range;
   const GAP = Math.round(bins * 0.03);
-  const PAD = { l: 34, r: 6, t: 4, b: 4 };
+  const PAD = { l: 38, r: 6, t: 4, b: xAxis ? 16 : 4 };
   let runMin = Infinity, runMax = -Infinity; // for autoskalering
   let markers = []; // [{ value, color, dash }]
 
@@ -35,13 +35,28 @@ export function createScope(wrap, { label = '', unit = '', color = '#fff', sweep
     ctx.clearRect(0, 0, width, h);
     const y = scaleLinear(min, max, area.y + area.h, area.y);
     const tk = ticks(min, max, 3);
-    drawGrid(ctx, area, y, tk, { zeroColor: zeroLine ? 'rgba(255,255,255,0.28)' : 'rgba(255,255,255,0.08)' });
+    drawGrid(ctx, area, y, tk, { textColor, zeroColor: zeroLine ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.08)' });
+    if (xAxis) {
+      // tidsakse i sekunder nederst (som på respiratorskjermen)
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.fillStyle = textColor; ctx.font = '10px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      const yb = Math.round(area.y + area.h) + 0.5;
+      ctx.beginPath(); ctx.moveTo(area.x, yb); ctx.lineTo(area.x + area.w, yb); ctx.stroke();
+      const step = sweepSeconds > 16 ? 5 : sweepSeconds > 8 ? 2 : 1;
+      for (let t = 0; t <= sweepSeconds + 1e-9; t += step) {
+        const px = Math.round(area.x + (t / sweepSeconds) * area.w) + 0.5;
+        ctx.beginPath(); ctx.moveTo(px, yb); ctx.lineTo(px, yb - 4); ctx.stroke();
+        if (t < sweepSeconds) ctx.fillText(String(t), px, yb + 3);
+      }
+      ctx.textAlign = 'right'; ctx.fillText('s', area.x + area.w, yb + 3);
+      ctx.restore();
+    }
 
     for (const mk of markers) {
       if (mk.value < min || mk.value > max) continue;
       const py = Math.round(y(mk.value)) + 0.5;
       ctx.save();
-      ctx.strokeStyle = mk.color; ctx.lineWidth = 1; ctx.setLineDash(mk.dash ?? [6, 4]);
+      ctx.strokeStyle = mk.color; ctx.lineWidth = markerStyle === 'solid' ? 1.5 : 1; ctx.setLineDash(markerStyle === 'solid' ? [] : (mk.dash ?? [6, 4]));
       ctx.beginPath(); ctx.moveTo(area.x, py); ctx.lineTo(area.x + area.w, py); ctx.stroke();
       ctx.restore();
     }
@@ -79,11 +94,16 @@ export function createScope(wrap, { label = '', unit = '', color = '#fff', sweep
     ctx.restore();
 
     ctx.save();
-    ctx.font = '600 12px system-ui, sans-serif';
-    ctx.fillStyle = color;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    ctx.fillText(`${label}${unit ? '  ' + unit : ''}`, area.x + 6, area.y + 2);
+    if (xAxis) {
+      // Hamilton-stil: navn og enhet i hvitt på to linjer
+      ctx.fillStyle = '#fff'; ctx.font = '13px system-ui, sans-serif'; ctx.fillText(label, area.x + 4, area.y + 1);
+      if (unit) { ctx.font = '11px system-ui, sans-serif'; ctx.fillText(unit, area.x + 4, area.y + 16); }
+    } else {
+      ctx.font = '600 12px system-ui, sans-serif'; ctx.fillStyle = color;
+      ctx.fillText(`${label}${unit ? '  ' + unit : ''}`, area.x + 6, area.y + 2);
+    }
     ctx.restore();
   }
 
