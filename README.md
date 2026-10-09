@@ -16,17 +16,30 @@ Nettbasert læringsplattform for intensivsykepleie, bygd som statisk app
 
 ## Respiratorsimulatoren
 
-Skjermen til venstre er bygget etter HAMILTON-C6s hovedskjerm (sammenlignet mot skjermbilde fra
-Hamiltons egen C6-simuleringsprogramvare): modusfelt med pasientikon øverst til venstre, svart
-meldingslinje (rød/gul ved alarm), MMP-kolonne til venstre med alarmgrensene oppe til venstre og
-store verdier til høyre, kurver (Paw gul, Flow magenta) med tidsakse, og under dem de to
-intelligente panelene Dynamic Lung og Vent Status på blå bunn (eller sløyfer, eller tre kurver,
-velges under Grafikk). Høyrekolonnen har Modus øverst, ringknapper for modusens hovedkontroller
-og knappene Kontroller og Alarmer. Nederst ligger hurtigknapper (manuell pust, O2-anrikning,
-lyd, standby), vindusknappene Monitorering, Grafikk, Verktøy, Hendelser og System, og
-dato/klokke. Kontroller-vinduet viser alle kontroller som ringknapper: trykk på en og juster
-med −/+ eller glidebryteren. (S)CMV+, PCV+ og SPONT er simulert; de andre C6-modiene står
-oppført i moduslisten, men er grå.
+Skjermen til venstre er bygget etter HAMILTON-C6 (sammenlignet mot skjermbilde fra Hamiltons
+C6-simuleringsprogramvare og video av en ekte C6): modusfelt med pasientikon øverst til venstre,
+svart meldingslinje (rød/gul ved alarm), MMP-kolonne til venstre med alarmgrensene oppe til venstre
+og store verdier til høyre, kurver (Paw gul, Flow magenta) med tidsakse, og under dem de to
+intelligente panelene Dynamic Lung og Vent Status på blå bunn. Høyrekolonnen har Modus øverst,
+ringknapper for modusens hovedkontroller og knappene Kontroller og Alarmer. Nederst ligger
+hurtigknappene (audio pause, manuell pust, O2-anrikning, lyd, standby), hjem og frys, vinduene
+Monitorering, Grafikk, Verktøy, Hendelser og System, og dato/klokke.
+
+Vinduene følger C6: lyse med faner til venstre, ringknapper som blir gule når de er valgt, og
+−/+ eller glidebryter nederst i stedet for dreieknappen.
+
+- **Modus**: gruppene Volumkontrollert (adaptiv), Trykkontrollert (bifasisk), Intelligent
+  ventilasjon og Noninvasiv. Gjeldende modus er grønn, grå modi finnes på C6 men er ikke simulert.
+  Velg modus, trykk Bekreft, sett kontrollene for den nye modusen, og trykk Bekreft igjen før den
+  tas i bruk (Avbryt forkaster alt).
+- **Kontroller**: fanene Grunn (I:E eller TI, Rate, P-ramp, Vt/Pcontrol/Psupport, PEEP/CPAP,
+  trigger, Oksygen), Mer (apné-backup) og Pasient (kjønn og høyde gir IBW). Nederst står TI, TE
+  og Vt/IBW. I gjeldende modus virker endringer fra neste pust.
+- **Alarmer**: en kolonne per alarm med øvre grense som ring, søyle med måleverdien og nedre
+  grense som ring. «Auto» setter grensene rundt gjeldende måleverdier.
+- **Grafikk**: oppsett 1–4 (tre kurver, kurver + sløyfer, kurver + paneler, Paw + store paneler),
+  tidsskala og frys.
+- **Standby**: gult Standby-felt og blått pasientoppsett (kjønn, høyde, IBW) med «Start ventilasjon».
 
 Sidepanelet til høyre (under på smale skjermer) ligger utenfor respiratoren og forsvinner
 ikke når du justerer den:

@@ -111,7 +111,9 @@ tonehøyden faller med metningen; tallene (880 Hz ved 100 %, 520 Hz ved 80 %) er
 | Refraktærtid etter ekspirasjonsstart før ny trigging | 0,15 s | Eget valg for å unngå autotrigging i modellen. |
 | Vent Status-soner (avvenningssone) | O2 21–40 %, PEEP ≤ 8, ΔPinsp ≤ 10, MinVol 4–10 l/min, spontanandel ≥ 60 %, RSB ≤ 105 | Panelet finnes på C6 (håndboken kap. 8), men sonegrensene her er pedagogiske valg; RSB ≤ 105 fra Yang & Tobin 1991. |
 | Dynamic Lung | lungestørrelse følger volum, farge følger compliance, bronkiebredde følger resistance | Panelet finnes på C6; tegningen er egen forenkling. Der C6 viser Pcuff og PVI, viser simulatoren Pplateau og AutoPEEP. |
-| Skjermens utseende | plassering av felter, farger (Paw gul, Flow magenta, blå paneler), ringknapper | Lagt opp etter ett skjermbilde av Hamiltons C6-simuleringsprogramvare; vinduenes innhold og betjening er egne løsninger, ikke gjengivelse av C6-programvaren. |
+| Skjermens utseende og vinduer | plassering av felter, farger (Paw gul, Flow magenta, blå paneler), ringknapper, lyse vinduer med faner, Modus-gruppene, Avbryt/Bekreft ved modusbytte, Alarmer med ringer og søyler, Standby-vinduet | Lagt opp etter skjermbilde av Hamiltons C6-simuleringsprogramvare og stillbilder fra video av en HAMILTON-C6 (SW 1.1.4) på messe; detaljer som ikke var synlige (Monitorering, Hendelser, System, Verktøy) er egne løsninger. Ingen Hamilton-grafikk eller -lyd er kopiert. |
+| Alarmgrenser fTotal | høy 40, lav 0 (av) | Egne standardverdier. |
+| Auto-alarmgrenser | MinVol og Vt ±50 %, fTotal + 15, Pmax = Ppeak + 15 | C6 har en Auto-knapp; reglene her er egne valg. |
 
 ### Bekreftet mot HAMILTON-C6 Operator's Manual (SW 1.2.x, Hamilton Medical, hamilton-medical.com)
 

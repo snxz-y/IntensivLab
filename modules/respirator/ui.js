@@ -1,15 +1,15 @@
 /**
  * Respiratorsimulator – brukergrensesnitt etter HAMILTON-C6.
  *
- * Venstre: «respiratoren», lagt opp etter HAMILTON-C6s hovedskjerm (brukerhåndbok kap. 2.2.2):
- *   modus øverst til venstre, fargekodet meldingslinje med Audio pause-nedtelling, MMP-kolonne til
- *   venstre med alarmgrenser (gul/rød ved alarm), grafikk i midten med valgfrie intelligente paneler
- *   (Dynamic Lung, Vent Status) eller sløyfer, vindusknappene Alarmer, Kontroller, Monitorering,
- *   Grafikk, Verktøy, Hendelser og System til høyre, hurtigknapper og hovedkontroller nederst.
+ * Venstre: «respiratoren», lagt opp etter HAMILTON-C6s hovedskjerm (sammenlignet mot skjermbilder og
+ * video av en ekte C6): modusfelt med pasientikon øverst til venstre, meldingslinje, MMP-kolonne med
+ * alarmgrenser, kurver med tidsakse, intelligente paneler (Dynamic Lung, Vent Status), høyrekolonne med
+ * Modus, ringknapper og Kontroller/Alarmer, bunnlinje med Monitorering, Grafikk, Verktøy, Hendelser, System.
+ * Vinduene er lyse med faner, ringknapper som blir gule når de er valgt, og Avbryt/Bekreft ved modusbytte.
  * Høyre: sidepanel med pasientmonitor, pasientoppsett, caser (meldingsfeed og valg 1 av 5) og oppgaver.
  */
 import { h, clear } from '../../core/ui/dom.js';
-import { slider, select, segmented, button, toggle } from '../../core/ui/controls.js';
+import { slider, segmented, button, toggle } from '../../core/ui/controls.js';
 import { toast } from '../../core/ui/toast.js';
 import { fmt } from '../../core/units.js';
 import { createScope } from '../../core/charts/scope.js';
@@ -30,41 +30,103 @@ const IE_OPTIONS = [
 ];
 const ieKey = (ie) => (ie.i === 1 ? `1:${ie.e}` : `${ie.i}:1`);
 const ieLabel = (ie) => ieKey(ie).replace('.', ',');
+const ieIndex = (ie) => Math.max(0, IE_OPTIONS.findIndex((o) => o.value === ieKey(ie)));
 
-/** MMP-er (Hamilton: Ppeak alltid øverst; alarmgrenser ved verdien). */
+/** MMP-er (Hamilton: Ppeak alltid øverst; alarmgrenser oppe til venstre i flisen). */
 const MMP_MAIN = [
   { key: 'ppeak', label: 'Ppeak', unit: 'cmH2O', d: 0, limits: ['pmax', null] },
   { key: 'peepTotal', label: 'PEEP/CPAP', unit: 'cmH2O', d: 1 },
   { key: 'vte', label: 'VTE', unit: 'ml', d: 0, limits: ['vtHigh', 'vtLow'] },
   { key: 'expMinVol', label: 'ExpMinVol', unit: 'l/min', d: 1, limits: ['mvHigh', 'mvLow'] },
-  { key: 'fTotal', label: 'fTotal', unit: 'b/min', d: 0 },
+  { key: 'fTotal', label: 'fTotal', unit: 'b/min', d: 0, limits: ['fHigh', 'fLow'] },
   { key: 'pplat', label: 'Pplateau', unit: 'cmH2O', d: 0 },
   { key: 'spo2', label: 'SpO2', unit: '%', d: 0, limits: [null, 'spo2Low'], compact: true },
 ];
 const MMP_ALL = [
   ...MMP_MAIN.map((m) => ({ ...m, compact: false })),
   { key: 'autoPeep', label: 'AutoPEEP', unit: 'cmH2O', d: 1 }, { key: 'petco2', label: 'PetCO2', unit: 'kPa', d: 1 },
-  { key: 'pmean', label: 'Pmean', unit: 'cmH2O', d: 1 }, { key: 'drivingPressure', label: 'ΔP (drivtrykk)', unit: 'cmH2O', d: 1 }, { key: 'pinsp', label: 'ΔPinsp', unit: 'cmH2O', d: 1 },
+  { key: 'pmean', label: 'Pmean', unit: 'cmH2O', d: 1 }, { key: 'drivingPressure', label: 'ΔP (drivtrykk)', unit: 'cmH2O', d: 1 }, { key: 'pinsp', label: 'Pinsp', unit: 'cmH2O', d: 1 },
   { key: 'vti', label: 'VTI', unit: 'ml', d: 0 }, { key: 'vtPerKg', label: 'Vt/IBW', unit: 'ml/kg', d: 1 }, { key: 'fSpont', label: 'fSpont', unit: 'b/min', d: 0 },
   { key: 'cstat', label: 'Cstat', unit: 'ml/cmH2O', d: 0 }, { key: 'rinsp', label: 'Rinsp', unit: 'cmH2O/(l/s)', d: 0 }, { key: 'rcexp', label: 'RCexp', unit: 's', d: 2 },
   { key: 'ti', label: 'TI', unit: 's', d: 2 }, { key: 'te', label: 'TE', unit: 's', d: 2 }, { key: 'ieText', label: 'I:E', unit: '', d: null }, { key: 'ibw', label: 'IBW', unit: 'kg', d: 1 },
   { key: 'paco2', label: 'PaCO2 (modell)', unit: 'kPa', d: 1 }, { key: 'pao2', label: 'PaO2 (modell)', unit: 'kPa', d: 1 },
 ];
-/** Sekundære monitoreringsparametre (C6 standard-SMP: Vt/IBW, Pplateau, RCexp, TI, ΔP, Pmean, Cstat, fSpont). */
-const SMP = [['vtPerKg', 'Vt/IBW', 'ml/kg', 1], ['pplat', 'Pplateau', 'cmH2O', 0], ['rcexp', 'RCexp', 's', 2], ['ti', 'TI', 's', 2], ['drivingPressure', 'ΔP', 'cmH2O', 0], ['pmean', 'Pmean', 'cmH2O', 1], ['cstat', 'Cstat', 'ml/cmH2O', 0], ['fSpont', 'fSpont', 'b/min', 0]];
-const WINDOWS = [
-  ['alarms', 'Alarmer'], ['controls', 'Kontroller'], ['monitor', 'Monitorering'],
-  ['graphics', 'Grafikk'], ['tools', 'Verktøy'], ['events', 'Hendelser'], ['system', 'System'],
-];
+const WINDOWS = {
+  alarms: 'Alarmer', controls: 'Kontroller', monitor: 'Monitorering', graphics: 'Grafikk', tools: 'Verktøy', events: 'Hendelser', system: 'System', modes: 'Modus', standby: 'Standby',
+};
 const BOTTOM_WINDOWS = ['monitor', 'graphics', 'tools', 'events', 'system'];
 const PERSON_ICON = '<svg viewBox="0 0 22 40" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="11" cy="5" r="4.5" fill="#fff"/><path d="M3 12h16l-2 14h-2v13h-3V26h-2v13H8V26H6z" fill="#fff"/></svg>';
 const WHO = { obs: ['👁', 'Observasjon'], kollega: ['🧑‍⚕️', 'Kollega'], monitor: ['📟', 'Monitor'], respirator: ['🫁', 'Respirator'], handling: ['✋', 'Du'] };
+
+/** Modusgrupper slik Modus-vinduet på C6 viser dem. Bare noen er simulert. */
+const MODE_GROUPS = [
+  { title: 'Volumkontrollert (adaptiv)', modes: [['APVCMV', '(S)CMV+'], ['APVSIMV', 'SIMV+'], ['SCMV', '(S)CMV'], ['SIMV', 'SIMV']] },
+  { title: 'Trykkontrollert (bifasisk)', modes: [['PCV', 'PCV+'], ['PSIMV', 'PSIMV+'], ['SPONT', 'SPONT'], ['DUOPAP', 'DuoPAP'], ['APRV', 'APRV']] },
+  { title: 'Intelligent ventilasjon', modes: [['ASV', 'ASV'], ['IVASV', 'INTELLiVENT-ASV']] },
+  { title: 'Noninvasiv', modes: [['NIV', 'NIV'], ['NIVST', 'NIV-ST'], ['HIFLOW', 'HiFlowO2']] },
+];
+
+/** Kontroller som ringknapper. get/set gir delvis innstillingsobjekt; fmtFn formaterer verdien i ringen. */
+const CTL = {
+  fio2: { label: 'Oksygen', unit: '%', min: 21, max: 100, step: 1 },
+  peep: { label: 'PEEP/CPAP', unit: 'cmH2O', min: 0, max: 35, step: 1 },
+  rate: { label: 'Rate', unit: 'b/min', min: 1, max: 80, step: 1 },
+  vt: { label: 'Vt', unit: 'ml', min: 100, max: 1000, step: 10 },
+  pcontrol: { label: 'Pcontrol', unit: 'cmH2O', min: 5, max: 60, step: 1 },
+  psupport: { label: 'Psupport', unit: 'cmH2O', min: 0, max: 60, step: 1 },
+  ie: { label: 'I:E', unit: '', min: 0, max: IE_OPTIONS.length - 1, step: 1, get: (s) => ieIndex(s.ie), set: (s, i) => ({ ie: IE_OPTIONS[i].ie, timingMode: 'ie' }), fmtFn: (i) => IE_OPTIONS[i].label },
+  ti: { label: 'TI', unit: 's', min: 0.1, max: 3, step: 0.05, dec: 2, set: (s, v) => ({ ti: v, timingMode: 'ti' }) },
+  pramp: { label: 'P-ramp', unit: 'ms', min: 0, max: 600, step: 25 },
+  tip: { label: 'Pause', unit: '%', min: 0, max: 30, step: 5 },
+  ets: { label: 'ETS', unit: '%', min: 5, max: 80, step: 5 },
+  tiMax: { label: 'TI max', unit: 's', min: 0.5, max: 3, step: 0.1, dec: 1 },
+  trigger: { label: (s) => (s.trigger.type === 'flow' ? 'Flowtrigger' : 'Trykktrigger'), unit: (s) => (s.trigger.type === 'flow' ? 'l/min' : 'cmH2O'), min: 0.5, max: (s) => (s.trigger.type === 'flow' ? 20 : 15), step: 0.5, dec: 1, get: (s) => s.trigger.value, set: (s, v) => ({ trigger: { ...s.trigger, value: v } }), fmtFn: (v, s) => (s.trigger.type === 'flow' ? String(v) : `-${v}`) },
+  apneaTime: { label: 'Apnétid', unit: 's', min: 5, max: 60, step: 5 },
+  backupRate: { label: 'Backup rate', unit: 'b/min', min: 4, max: 30, step: 1, get: (s) => s.backup.rate, set: (s, v) => ({ backup: { ...s.backup, rate: v } }) },
+  backupPcontrol: { label: 'Backup Pinsp', unit: 'cmH2O', min: 5, max: 40, step: 1, get: (s) => s.backup.pcontrol, set: (s, v) => ({ backup: { ...s.backup, pcontrol: v } }) },
+};
+const resolve = (v, s) => (typeof v === 'function' ? v(s) : v);
+function ctlItem(key, s) {
+  const d = CTL[key];
+  const value = d.get ? d.get(s) : s[key];
+  return { key, label: resolve(d.label, s), unit: resolve(d.unit, s), min: resolve(d.min, s), max: resolve(d.max, s), step: d.step, dec: d.dec ?? 0, value, fmtFn: (v) => (d.fmtFn ? d.fmtFn(v, s) : d.dec ? Number(v).toFixed(d.dec) : String(v)), set: (v) => (d.set ? d.set(s, v) : { [key]: v }) };
+}
+/** Hvilke kontroller som vises per modus og fane (Grunn / Mer), som på C6. */
+function controlKeys(s, tab) {
+  const timing = s.timingMode === 'ie' ? 'ie' : 'ti';
+  if (tab === 'basic') {
+    if (s.mode === 'APVCMV') return [timing, 'rate', 'pramp', 'vt', 'peep', 'trigger', 'fio2'];
+    if (s.mode === 'SCMV') return [timing, 'rate', 'tip', 'vt', 'peep', 'trigger', 'fio2'];
+    if (s.mode === 'PCV') return [timing, 'rate', 'pramp', 'pcontrol', 'peep', 'trigger', 'fio2'];
+    return ['psupport', 'pramp', 'ets', 'tiMax', 'peep', 'trigger', 'fio2'];
+  }
+  return ['apneaTime', 'backupRate', 'backupPcontrol'];
+}
+/** Ringkontrollene i høyrekolonnen (C6 viser modusens viktigste kontroller der). */
+const RING_KEYS = { APVCMV: ['vt', 'rate', 'peep', 'fio2'], SCMV: ['vt', 'rate', 'peep', 'fio2'], PCV: ['pcontrol', 'rate', 'peep', 'fio2'], SPONT: ['psupport', 'peep', 'fio2'] };
+
+/** Alarmgrenser i Alarmer-vinduet: øvre ring, søyle med måleverdi, nedre ring. */
+const ALARM_COLS = [
+  { label: 'Trykk', unit: 'cmH2O', hi: 'pmax', lo: null, measure: 'ppeak', min: 0, max: 70 },
+  { label: 'ExpMinVol', unit: 'l/min', hi: 'mvHigh', lo: 'mvLow', measure: 'expMinVol', min: 0, max: 40 },
+  { label: 'Vt', unit: 'ml', hi: 'vtHigh', lo: 'vtLow', measure: 'vte', min: 0, max: 2000 },
+  { label: 'fTotal', unit: 'b/min', hi: 'fHigh', lo: 'fLow', measure: 'fTotal', min: 0, max: 80 },
+  { label: 'SpO2', unit: '%', hi: null, lo: 'spo2Low', measure: 'spo2', min: 50, max: 100 },
+  { label: 'Apnétid', unit: 's', hi: 'apnea', lo: null, measure: null, min: 0, max: 60 },
+];
+const ALARM_DEF = { pmax: { label: 'Trykk høy (Pmax)', min: 15, max: 70, step: 1 }, mvLow: { label: 'ExpMinVol lav', min: 0.5, max: 20, step: 0.5, dec: 1 }, mvHigh: { label: 'ExpMinVol høy', min: 2, max: 40, step: 0.5, dec: 1 }, vtLow: { label: 'Vt lav', min: 50, max: 1000, step: 10 }, vtHigh: { label: 'Vt høy', min: 100, max: 2000, step: 10 }, fLow: { label: 'fTotal lav', min: 0, max: 40, step: 1 }, fHigh: { label: 'fTotal høy', min: 10, max: 80, step: 1 }, spo2Low: { label: 'SpO2 lav', min: 70, max: 99, step: 1 }, apnea: { label: 'Apnétid', min: 5, max: 60, step: 5 } };
 
 /** Standard Vt ved oppstart: 8 ml/kg IBW (Hamilton: Vt/IBW standard 8 ml/kg), avrundet til 10 ml. */
 function startupVt(patient) {
   return Math.max(200, Math.round((8 * idealBodyWeightHamilton(patient.height, patient.sex)) / 10) * 10);
 }
 const clock = (t) => `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+function timingInfo(s, patient) {
+  const cycle = 60 / s.rate;
+  const ti = s.timingMode === 'ie' ? cycle * (s.ie.i / (s.ie.i + s.ie.e)) : s.ti;
+  const ibw = idealBodyWeightHamilton(patient.height, patient.sex);
+  return { ti, te: cycle - ti, vtKg: s.vt / ibw };
+}
 
 export function mountRespirator(container, ctx) {
   const { storage } = ctx;
@@ -81,15 +143,15 @@ export function mountRespirator(container, ctx) {
   const saveProgress = () => storage.set('respirator:progress', progress);
 
   const ui = {
-    running: true, frozen: false, speed: 1, window: null, focusKey: null, layout: 'panels', profileId,
+    running: true, frozen: false, speed: 1, window: null, focusKey: null, layout: 3, profileId,
     raf: 0, acc: 0, lastNow: null, lastHoldTime: null, lastBreathTime: 0, autoHoldUntil: null,
-    task: null, situation: null, tab: 'patient', unread: 0, o2Enrich: null,
-    alarms: { mvLow: 3, mvHigh: 15, vtLow: 200, vtHigh: 1000, spo2Low: 90, apnea: 20 },
+    task: null, situation: null, tab: 'patient', unread: 0, o2Enrich: null, pending: null,
+    alarms: { mvLow: 3, mvHigh: 15, vtLow: 200, vtHigh: 1000, fLow: 0, fHigh: 40, spo2Low: 90, apnea: 20 },
     activeAlarms: [], events: [],
   };
 
   // ======================= DOM-skjelett =======================
-  const modeBtn = h('button', { class: 'hc-mode', type: 'button', onClick: () => openModeModal() });
+  const modeBtn = h('button', { class: 'hc-mode', type: 'button', onClick: () => openWindow('modes') });
   const msgBar = h('div', { class: 'hc-msg' });
   const clockBox = h('div', { class: 'hc-clock' });
   const mmpCol = h('div', { class: 'hc-mmp' });
@@ -98,7 +160,7 @@ export function mountRespirator(container, ctx) {
   const panels = h('div', { class: 'hc-panels' });
   const waves = h('div', { class: 'hc-waves' }, curves, panels, loops);
   const rings = h('div', { class: 'hc-rings' });
-  const modesBtn = h('button', { type: 'button', class: 'hc-btn', onClick: () => openModeModal() }, 'Modus');
+  const modesBtn = h('button', { type: 'button', class: 'hc-btn', dataset: { win: 'modes' }, onClick: () => openWindow('modes') }, 'Modus');
   const controlsBtn = h('button', { type: 'button', class: 'hc-btn', dataset: { win: 'controls' }, onClick: () => openWindow('controls') }, 'Kontroller');
   const alarmsBtn = h('button', { type: 'button', class: 'hc-btn', dataset: { win: 'alarms' }, onClick: () => openWindow('alarms') }, 'Alarmer');
   const right = h('div', { class: 'hc-right' }, modesBtn, rings, controlsBtn, alarmsBtn);
@@ -114,7 +176,6 @@ export function mountRespirator(container, ctx) {
   container.append(root);
 
   // ======================= Kurver, sløyfer, paneler =======================
-  const cssColor = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#fff';
   // Kurvefarger som på C6: Paw gul, Flow magenta, Volum blå; hvit tidsakse i sekunder
   const SCOPE_OPTS = { sweepSeconds: 11, xAxis: true, textColor: '#fff', markerStyle: 'solid' };
   const sc = {
@@ -210,13 +271,18 @@ export function mountRespirator(container, ctx) {
     ventStatus.replaceChildren(...groups);
     ventStatusPanel.classList.toggle('active', allIn);
   }
+  /** Oppsett 1–4 som i Grafikk-vinduet på C6: 1 tre kurver, 2 to kurver + sløyfer, 3 to kurver + paneler, 4 én kurve + store paneler. */
   function applyLayout() {
-    waves.classList.toggle('with-loops', ui.layout === 'loops');
-    waves.classList.toggle('with-panels', ui.layout === 'panels');
-    curves.classList.toggle('three', ui.layout === 'curves');
-    sc.vol.wrap.style.display = ui.layout === 'curves' ? '' : 'none';
-    loops.style.display = ui.layout === 'loops' ? '' : 'none';
-    panels.style.display = ui.layout === 'panels' ? '' : 'none';
+    const L = ui.layout;
+    waves.classList.toggle('with-loops', L === 2);
+    waves.classList.toggle('with-panels', L === 3 || L === 4);
+    waves.classList.toggle('big-panels', L === 4);
+    curves.classList.toggle('three', L === 1);
+    curves.classList.toggle('one', L === 4);
+    sc.vol.wrap.style.display = L === 1 ? '' : 'none';
+    sc.flow.wrap.style.display = L === 4 ? 'none' : '';
+    loops.style.display = L === 2 ? '' : 'none';
+    panels.style.display = L === 3 || L === 4 ? '' : 'none';
   }
 
   // ======================= MMP =======================
@@ -224,7 +290,7 @@ export function mountRespirator(container, ctx) {
   for (const m of MMP_MAIN) {
     const val = h('div', { class: 'mmp-value' }, '–');
     const lim = h('div', { class: 'mmp-limits' });
-    const el = h('div', { class: `mmp ${m.compact ? 'compact' : ''}`, onClick: () => openWindow('alarms', m.key) }, lim, h('div', { class: 'mmp-main' }, val, h('div', { class: 'mmp-label' }, m.label, h('span', { class: 'mmp-unit' }, m.unit))));
+    const el = h('div', { class: `mmp ${m.compact ? 'compact' : ''}`, onClick: () => openWindow('alarms', m.limits?.[0] ?? m.limits?.[1] ?? null) }, lim, h('div', { class: 'mmp-main' }, val, h('div', { class: 'mmp-label' }, m.label, h('span', { class: 'mmp-unit' }, m.unit))));
     mmpTiles[m.key] = { el, val, lim, def: m };
     mmpCol.append(el);
   }
@@ -238,7 +304,6 @@ export function mountRespirator(container, ctx) {
       let cls = `mmp ${t.def.compact ? 'compact' : ''}`;
       if (alarmByKey[key]) cls += ` alarm-${alarmByKey[key]}`;
       if (key === 'pplat' && m.pplatMeasured != null) cls += ' measured';
-      if (key === 'autoPeep' && m.autoPeepMeasured != null) cls += ' measured';
       t.val.textContent = t.def.d === null ? (m[key] ?? '–') : fmt(m[key], t.def.d);
       t.el.className = cls;
       if (t.def.limits) { const [hi, lo] = t.def.limits; t.lim.replaceChildren(h('span', {}, hi ? String(limitValue(hi)) : ''), h('span', {}, lo ? String(limitValue(lo)) : '')); }
@@ -251,6 +316,7 @@ export function mountRespirator(container, ctx) {
   function evaluateAlarms() {
     const m = vent.measurements, s = vent.settings;
     const list = [];
+    if (!ui.running) { ui.activeAlarms = []; return list; }
     const hasBreath = m.breathType !== null;
     if (vent.disconnected || (hasBreath && m.ppeak < m.peep + 2 && s.mode !== 'SPONT')) list.push({ id: 'disc', text: 'Frakobling på pasientsiden', priority: 'high', mmp: 'ppeak' });
     if (m.highPressure || (m.ppeak !== null && m.ppeak >= s.pmax)) list.push({ id: 'phigh', text: 'Trykk høy', priority: 'high', mmp: 'ppeak' });
@@ -260,6 +326,8 @@ export function mountRespirator(container, ctx) {
     if (gas.state.spo2 * 100 < ui.alarms.spo2Low) list.push({ id: 'spo2', text: `SpO2 lav (${fmt(gas.state.spo2 * 100, 0)} %)`, priority: 'high', mmp: 'spo2' });
     if (hasBreath && !vent.disconnected && m.vte < ui.alarms.vtLow) list.push({ id: 'vtlow', text: 'Vt lav', priority: 'medium', mmp: 'vte' });
     if (hasBreath && m.vte > ui.alarms.vtHigh) list.push({ id: 'vthigh', text: 'Vt høy', priority: 'medium', mmp: 'vte' });
+    if (hasBreath && m.fTotal > ui.alarms.fHigh) list.push({ id: 'fhigh', text: 'Frekvens høy', priority: 'medium', mmp: 'fTotal' });
+    if (hasBreath && ui.alarms.fLow > 0 && m.fTotal < ui.alarms.fLow) list.push({ id: 'flow', text: 'Frekvens lav', priority: 'medium', mmp: 'fTotal' });
     if (m.pressureLimited) list.push({ id: 'plimit', text: 'Trykkbegrensning', priority: 'medium', mmp: 'ppeak' });
     const prev = new Set(ui.activeAlarms.map((a) => a.id)), now = new Set(list.map((a) => a.id));
     for (const a of list) if (!prev.has(a.id)) logEvent(`Alarm: ${a.text}`, a.priority);
@@ -273,10 +341,11 @@ export function mountRespirator(container, ctx) {
     audio.setAlarm(list.length ? (high ? 'high' : 'medium') : null);
     msgBar.className = `hc-msg ${list.length ? (high ? 'high' : 'medium') : ''}`;
     clear(msgBar);
-    const text = list.length ? list.map((a) => a.text).join(' · ') : (ui.o2Enrich ? `O2-anrikning: ${fmt(Math.max(0, ui.o2Enrich.until - vent.time), 0)} s igjen` : '');
+    const text = list.length ? list.map((a) => a.text).join(' · ') : (ui.o2Enrich ? `O2-anrikning: ${fmt(Math.max(0, ui.o2Enrich.until - vent.time), 0)} s igjen` : (!ui.running ? 'Standby – ingen ventilasjon leveres' : ''));
     msgBar.append(h('span', { class: 'hc-msg-text' }, text));
-    if (audio.enabled && (list.length || audio.silenced)) msgBar.append(button(audio.silenced ? `🔕 ${clock(audio.silencedFor)}` : '🔔 Audio pause', { small: true, onClick: () => { audio.silenced ? audio.unsilence() : audio.silence(120); renderMsgBar(); } }));
+    if (audio.enabled && audio.silenced) msgBar.append(h('span', { class: 'hc-silenced' }, `🔕 ${clock(audio.silencedFor)}`));
     alarmsBtn.classList.toggle('alarming', high);
+    silenceBtn.classList.toggle('alarming', list.length > 0 && !audio.silenced);
   }
   function logEvent(text, priority = '') {
     ui.events.unshift({ t: vent.time, text, priority });
@@ -284,12 +353,13 @@ export function mountRespirator(container, ctx) {
     if (ui.window === 'events') openWindow('events', true);
   }
 
-  // ======================= Topplinje =======================
+  // ======================= Topplinje, klokke, ringer =======================
   function renderTop() {
     const s = vent.settings;
     clear(modeBtn);
+    modeBtn.classList.toggle('standby', !ui.running);
     modeBtn.innerHTML = PERSON_ICON;
-    modeBtn.append(h('div', { class: 'hc-mode-name' }, MODES[s.mode].label));
+    modeBtn.append(h('div', { class: 'hc-mode-name' }, ui.running ? MODES[s.mode].label : 'Standby'));
     renderMsgBar(); renderRings();
   }
   function renderClock() {
@@ -298,214 +368,263 @@ export function mountRespirator(container, ctx) {
       h('div', { class: 'clock-text' }, h('span', {}, `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`), h('span', {}, clock(vent.time)), h('small', {}, ui.speed === 1 ? 'simulert tid' : `${ui.speed}×`)),
       h('button', { type: 'button', class: 'menu', 'aria-label': 'System', onClick: () => openWindow('system') }, '☰'));
   }
-
-  // ======================= Hovedkontroller nederst =======================
-  function settingDefs() {
-    const s = vent.settings;
-    const common = [{ key: 'fio2', label: 'Oksygen', value: s.fio2, unit: '%' }, { key: 'peep', label: 'PEEP/CPAP', value: s.peep, unit: 'cmH2O' }];
-    const timing = s.timingMode === 'ie' ? { key: 'ie', label: 'I:E', value: ieLabel(s.ie), unit: '' } : { key: 'ti', label: 'TI', value: s.ti.toFixed(2), unit: 's' };
-    const trig = { key: 'trigger', label: s.trigger.type === 'flow' ? 'Trigger (flow)' : 'Trigger (trykk)', value: s.trigger.type === 'flow' ? s.trigger.value : `-${s.trigger.value}`, unit: s.trigger.type === 'flow' ? 'l/min' : 'cmH2O' };
-    if (s.mode === 'APVCMV') return [...common, { key: 'rate', label: 'Rate', value: s.rate, unit: 'b/min' }, { key: 'vt', label: 'Vt', value: s.vt, unit: 'ml' }, timing, { key: 'pramp', label: 'P-ramp', value: s.pramp, unit: 'ms' }, trig];
-    if (s.mode === 'SCMV') return [...common, { key: 'rate', label: 'Rate', value: s.rate, unit: 'b/min' }, { key: 'vt', label: 'Vt', value: s.vt, unit: 'ml' }, timing, { key: 'tip', label: 'Pause', value: s.tip, unit: '%' }, { key: 'flowPattern', label: 'Flowmønster', value: s.flowPattern === 'decel' ? 'Desel.' : 'Firkant', unit: '' }, trig];
-    if (s.mode === 'PCV') return [...common, { key: 'rate', label: 'Rate', value: s.rate, unit: 'b/min' }, { key: 'pcontrol', label: 'ΔPcontrol', value: s.pcontrol, unit: 'cmH2O' }, timing, { key: 'pramp', label: 'P-ramp', value: s.pramp, unit: 'ms' }, trig];
-    return [...common, { key: 'psupport', label: 'ΔPsupport', value: s.psupport, unit: 'cmH2O' }, { key: 'pramp', label: 'P-ramp', value: s.pramp, unit: 'ms' }, { key: 'ets', label: 'ETS', value: s.ets, unit: '%' }, trig, { key: 'tiMax', label: 'TI max', value: s.tiMax, unit: 's' }];
+  function knobEl(item, active, onClick) {
+    return h('button', { type: 'button', class: `knob ${active ? 'active' : ''}`, dataset: { key: item.key }, onClick },
+      h('div', { class: 'ring' }, h('div', { class: 'ring-value' }, item.fmtFn(item.value)), h('div', { class: 'ring-unit' }, item.unit)), h('div', { class: 'ring-label' }, item.label));
   }
-  /** Ringkontrollene i høyrekolonnen (C6 viser modusens viktigste kontroller her). */
-  const RING_KEYS = { APVCMV: ['vt', 'rate', 'peep', 'fio2'], SCMV: ['vt', 'rate', 'peep', 'fio2'], PCV: ['pcontrol', 'rate', 'peep', 'fio2'], SPONT: ['psupport', 'peep', 'fio2'] };
   function renderRings() {
     clear(rings);
-    const defs = settingDefs();
-    for (const key of RING_KEYS[vent.settings.mode] ?? []) {
-      const d = defs.find((x) => x.key === key); if (!d) continue;
-      rings.append(h('button', { type: 'button', class: `knob ${ui.window === 'controls' && ui.focusKey === key ? 'active' : ''}`, dataset: { key }, onClick: () => openWindow('controls', key) },
-        h('div', { class: 'ring' }, h('div', { class: 'ring-value' }, String(d.value)), h('div', { class: 'ring-unit' }, d.unit)), h('div', { class: 'ring-label' }, d.label)));
+    const s = vent.settings;
+    for (const key of RING_KEYS[s.mode] ?? []) {
+      const item = ctlItem(key, s);
+      rings.append(knobEl(item, ui.window === 'controls' && !ui.pending && ui.focusKey === key, () => openWindow('controls', key)));
     }
   }
-  const renderSettingsBar = renderRings;
 
   // ======================= Endring av innstillinger =======================
-  function applySetting(key, value, { silent = false } = {}) {
-    const s = vent.settings;
-    const before = key === 'ie' ? ieLabel(s.ie) : key === 'triggerValue' ? s.trigger.value : key === 'backupRate' ? s.backup.rate : key === 'backupPcontrol' ? s.backup.pcontrol : s[key];
-    const partial = {};
-    if (key === 'ie') { partial.ie = value; partial.timingMode = 'ie'; }
-    else if (key === 'ti') { partial.ti = value; partial.timingMode = 'ti'; }
-    else if (key === 'triggerType') partial.trigger = { type: value, value: 2 };
-    else if (key === 'triggerValue') partial.trigger = { ...s.trigger, value };
-    else if (key === 'backupRate') partial.backup = { ...s.backup, rate: value };
-    else if (key === 'backupPcontrol') partial.backup = { ...s.backup, pcontrol: value };
-    else partial[key] = value;
+  function applyPartial(partial, { silent = false, label = null } = {}) {
+    const before = structuredClone(vent.settings);
     vent.setSettings(partial);
-    const after = key === 'ie' ? ieLabel(value) : key === 'mode' ? MODES[value].label : value;
-    if (!silent) logEvent(`${settingLabel(key)}: ${key === 'mode' ? MODES[before]?.label ?? before : before} → ${after}`);
-    updateMarkers(); renderSettingsBar(); renderTop();
+    if (!silent) {
+      const key = label ?? Object.keys(partial)[0];
+      const fmtV = (s) => (key === 'ie' ? ieLabel(s.ie) : key === 'trigger' ? s.trigger.value : key === 'mode' ? MODES[s.mode].label : key === 'backupRate' ? s.backup.rate : key === 'backupPcontrol' ? s.backup.pcontrol : s[key]);
+      logEvent(`${settingLabel(key)}: ${fmtV(before)} → ${fmtV(vent.settings)}`);
+    }
+    updateMarkers(); renderTop();
+  }
+  function applySetting(key, value, opts = {}) {
+    const s = vent.settings;
+    const partial = CTL[key]?.set ? CTL[key].set(s, value) : key === 'triggerType' ? { trigger: { type: value, value: 2 } } : { [key]: value };
+    applyPartial(partial, { ...opts, label: key === 'triggerType' ? 'trigger' : key });
   }
   const PREDICTABLE = new Set(['vt', 'rate', 'peep', 'ie', 'ti', 'pcontrol', 'psupport', 'tip', 'flowPattern', 'ets', 'pramp', 'pmax']);
-  function changeSetting(key, value) {
+  function changeSetting(key, value, after) {
     const s = vent.settings;
     const oldValue = key === 'ie' ? s.ie : s[key];
+    const newValue = key === 'ie' ? IE_OPTIONS[value].ie : value;
     if (ui.task && PREDICTABLE.has(key)) {
-      const q = predictionFor({ key, oldValue, newValue: value, settings: s, patient: vent.patient, focus: ui.task.task.focus });
-      if (q) { showPrediction(q, () => applySetting(key, value), () => openWindow('controls', key)); return; }
+      const q = predictionFor({ key, oldValue, newValue, settings: s, patient: vent.patient, focus: ui.task.task.focus });
+      if (q) { showPrediction(q, () => { applySetting(key, value); after?.(); }, () => after?.()); return; }
     }
-    applySetting(key, value);
+    applySetting(key, value); after?.();
   }
 
-  // ======================= Vinduer på respiratoren =======================
+  // ======================= Vinduer (lyse, som på C6) =======================
   let windowEl = null;
   function closeWindow() {
-    windowEl?.remove(); windowEl = null; ui.window = null; ui.focusKey = null;
+    windowEl?.remove(); windowEl = null; ui.window = null; ui.focusKey = null; ui.pending = null;
     hc.querySelectorAll('.hc-btn[data-win]').forEach((b) => b.classList.remove('active'));
     rings.querySelectorAll('.knob').forEach((b) => b.classList.remove('active'));
   }
   function openWindow(name, focusKey) {
     if (ui.window === name && !focusKey) { closeWindow(); return; }
+    const pending = ui.pending; // beholdes ved re-rendering av Kontroller under modusbytte
     closeWindow();
+    if (name === 'controls') ui.pending = pending;
     ui.window = name; ui.focusKey = typeof focusKey === 'string' ? focusKey : null;
     hc.querySelectorAll('.hc-btn[data-win]').forEach((b) => b.classList.toggle('active', b.dataset.win === name));
-    rings.querySelectorAll('.knob').forEach((b) => b.classList.toggle('active', b.dataset.key === ui.focusKey));
-    const body = h('div', { class: 'hc-window-body' });
-    const head = h('div', { class: 'hc-window-head' });
-    windowEl = h('div', { class: 'hc-window', role: 'dialog' }, head, body);
+    rings.querySelectorAll('.knob').forEach((b) => b.classList.toggle('active', name === 'controls' && !ui.pending && b.dataset.key === ui.focusKey));
+    const head = h('div', { class: 'hc-window-head' }, h('button', { class: 'hc-close', type: 'button', 'aria-label': 'Lukk', onClick: () => closeWindow() }, '✕'), h('h2', {}, WINDOWS[name]));
+    const side = h('div', { class: 'hc-window-side' });
+    const main = h('div', { class: 'hc-window-main' });
+    const foot = h('div', { class: 'hc-window-foot' });
+    windowEl = h('div', { class: `hc-window ${name === 'standby' ? 'standby' : ''}`, role: 'dialog' }, head, h('div', { class: 'hc-window-body' }, side, main), foot);
     hc.append(windowEl);
-    head.append(h('h2', {}, Object.fromEntries(WINDOWS)[name]), h('button', { class: 'hc-close', type: 'button', 'aria-label': 'Lukk', onClick: closeWindow }, '✕'));
-    ({ alarms: renderAlarms, controls: renderControls, monitor: renderMonitor, graphics: renderGraphics, tools: renderTools, events: renderEvents, system: renderSystem })[name](body, head, focusKey === true ? null : focusKey);
-  }
-
-  function renderAlarms(body, head, focusKey) {
-    const mk = (label, key, unit, min, max, step) => {
-      const ctl = slider({ label, unit, min, max, step, value: key === 'pmax' ? vent.settings.pmax : ui.alarms[key], onChange: (v) => { if (key === 'pmax') applySetting('pmax', v); else { ui.alarms[key] = v; logEvent(`Alarmgrense ${label}: ${v}`); } updateMMP(vent.measurements); } });
-      if (focusKey && ((focusKey === 'ppeak' && key === 'pmax') || (focusKey === 'vte' && key.startsWith('vt')) || (focusKey === 'expMinVol' && key.startsWith('mv')) || (focusKey === 'spo2' && key === 'spo2Low'))) ctl.el.classList.add('highlight');
-      body.append(ctl.el);
+    const win = {
+      head, side, main, foot,
+      tabs(list, active, onPick) { side.replaceChildren(...list.map(([id, label]) => h('button', { type: 'button', class: id === active ? 'active' : '', onClick: () => onPick(id) }, label))); side.style.display = ''; },
     };
-    body.append(h('div', { class: 'hc-section' }, 'Grenser 1'));
-    mk('Trykk høy (Pmax)', 'pmax', 'cmH2O', 15, 70, 1);
-    body.append(h('p', { class: 'faint', style: { fontSize: '0.82rem' } }, `Plimit = Pmax − 10 = ${vent.settings.pmax - 10} cmH2O: respiratoren begrenser levert trykk her. Ved Pmax åpnes ekspirasjonsventilen (høyprioritetsalarm).`));
-    mk('ExpMinVol lav', 'mvLow', 'l/min', 0.5, 20, 0.5); mk('ExpMinVol høy', 'mvHigh', 'l/min', 2, 40, 0.5);
-    mk('Vt lav', 'vtLow', 'ml', 50, 1000, 10); mk('Vt høy', 'vtHigh', 'ml', 100, 2000, 10);
-    body.append(h('div', { class: 'hc-section' }, 'Grenser 2'));
-    mk('Apnétid', 'apnea', 's', 5, 60, 5); mk('SpO2 lav', 'spo2Low', '%', 70, 99, 1);
-    body.append(h('div', { class: 'hc-section' }, 'Buffer (aktive alarmer)'));
-    body.append(ui.activeAlarms.length ? h('div', { class: 'event-list' }, ...ui.activeAlarms.map((a) => h('div', { class: `ev ${a.priority}` }, h('time', {}, a.priority === 'high' ? 'HØY' : 'MIDDELS'), h('span', {}, a.text)))) : h('p', { class: 'muted' }, 'Ingen aktive alarmer.'));
-    if (focusKey) windowEl.querySelector('.highlight')?.scrollIntoView({ block: 'center' });
+    side.style.display = 'none';
+    ({ alarms: renderAlarms, controls: renderControls, monitor: renderMonitor, graphics: renderGraphics, tools: renderTools, events: renderEvents, system: renderSystem, modes: renderModes, standby: renderStandby })[name](win, focusKey === true ? null : focusKey);
+    if (!foot.childNodes.length) foot.style.display = 'none';
+  }
+  /** Justering nederst i vinduet: −/+ og glidebryter for valgt ringknapp (erstatter dreieknappen på C6). */
+  function adjuster(item, onValue) {
+    const clampV = (v) => Number(Math.min(item.max, Math.max(item.min, v)).toFixed(item.dec));
+    const range = h('input', { type: 'range', min: String(item.min), max: String(item.max), step: String(item.step), value: String(item.value), 'aria-label': item.label, onChange: (e) => onValue(clampV(Number(e.target.value))) });
+    return h('div', { class: 'adj' },
+      h('div', { class: 'adj-head' }, h('span', {}, item.label), h('span', { class: 'adj-val' }, item.fmtFn(item.value), ' ', h('small', {}, item.unit))),
+      h('div', { class: 'adj-row' },
+        h('button', { type: 'button', class: 'adj-btn', 'aria-label': 'Mindre', onClick: () => onValue(clampV(item.value - item.step)) }, '−'),
+        range,
+        h('button', { type: 'button', class: 'adj-btn', 'aria-label': 'Mer', onClick: () => onValue(clampV(item.value + item.step)) }, '+')));
+  }
+  const c6btn = (label, { onClick, disabled = false, green = false } = {}) => h('button', { type: 'button', class: `btn-c6 ${green ? 'green' : ''}`, disabled, onClick }, label);
+
+  // ---------- Modus ----------
+  function renderModes(win) {
+    const current = vent.settings.mode;
+    let selected = current;
+    const groups = h('div', { class: 'mode-groups' });
+    const confirm = c6btn('Bekreft', { disabled: true, onClick: () => {
+      ui.pending = { settings: { ...structuredClone(vent.settings), mode: selected } };
+      openWindow('controls', true);
+    } });
+    const render = () => {
+      groups.replaceChildren(...MODE_GROUPS.map((g) => h('div', { class: 'mode-group' }, h('h4', {}, g.title), h('div', { class: 'row-btns' }, ...g.modes.map(([id, label]) => {
+        const sim = !!MODES[id];
+        return h('button', { type: 'button', class: `mode-btn ${id === current ? 'current' : ''} ${id === selected && id !== current ? 'selected' : ''}`, disabled: !sim, title: sim ? MODES[id].description : 'Finnes på C6, ikke i simulatoren', onClick: () => { selected = id; confirm.disabled = selected === current; render(); } }, label);
+      })))));
+    };
+    render();
+    win.main.append(groups, h('p', { class: 'faint', style: { fontSize: '0.78rem' } }, 'Grå modi finnes på C6, men er ikke simulert. Velg modus og trykk Bekreft; deretter settes kontrollene for den nye modusen før den tas i bruk.'));
+    win.foot.append(h('span', {}), h('div', { class: 'row' }, c6btn('Avbryt', { onClick: closeWindow }), confirm));
   }
 
-  function renderControls(body, head, focusKey) {
-    const s = vent.settings;
-    const tabs = [['basic', 'Grunn'], ['patient', 'Pasient'], ...(s.mode === 'SPONT' ? [['apnea', 'Apné']] : [])];
-    let tab = focusKey === 'height' ? 'patient' : focusKey === 'apnea' ? 'apnea' : 'basic';
-    const tabBar = h('div', { class: 'tabs' });
-    const content = h('div', {});
+  // ---------- Kontroller ----------
+  function renderControls(win, focusKey) {
+    const pending = ui.pending;
+    const s = pending ? pending.settings : vent.settings;
+    const tabs = [['basic', 'Grunn'], ['more', 'Mer'], ...(pending ? [] : [['patient', 'Pasient']])];
+    let tab = focusKey === 'height' ? 'patient' : ['apneaTime', 'backupRate', 'backupPcontrol'].includes(focusKey) ? 'more' : 'basic';
+    const content = h('div', { class: 'win-content' });
+    const info = h('div', { class: 'ctl-info' });
+    const modeName = h('div', { class: 'ctl-mode' }, MODES[s.mode].label);
+    const renderInfo = () => {
+      if (s.mode === 'SPONT') { info.replaceChildren(h('div', {}, `TI max: ${s.tiMax.toFixed(1)} s`), h('div', {}, `ETS: ${s.ets} %`)); return; }
+      const t = timingInfo(s, vent.patient);
+      info.replaceChildren(h('div', {}, `TI: ${t.ti.toFixed(2)} s`), h('div', {}, `TE: ${t.te.toFixed(2)} s`), (s.mode === 'APVCMV' || s.mode === 'SCMV') ? h('div', {}, `Vt/IBW: ${t.vtKg.toFixed(1)} ml/kg`) : h('div', {}, `I:E ${ieLabel(s.ie)}`));
+    };
     const renderTab = () => {
-      tabBar.replaceChildren(...tabs.map(([id, label]) => h('button', { type: 'button', class: id === tab ? 'active' : '', onClick: () => { tab = id; renderTab(); } }, label)));
+      win.tabs(tabs, tab, (id) => { tab = id; ui.focusKey = null; renderTab(); });
       clear(content);
-      const add = (key, ctl) => { if (key === focusKey) ctl.el.classList.add('highlight'); content.append(ctl.el); return ctl; };
-      const sl = (key, opts) => add(key, slider({ ...opts, onChange: (v) => changeSetting(key, v) }));
-      if (tab === 'basic') {
-        // Som på C6: alle kontroller som ringknapper; trykk på en, juster med −/+ eller glidebryteren under.
-        const items = [];
-        const num = (key, label, unit, min, max, step, value, fmtFn = (v) => String(v)) => items.push({ key, label, unit, min, max, step, value, fmtFn });
-        num('fio2', 'Oksygen', '%', 21, 100, 1, s.fio2);
-        num('peep', 'PEEP/CPAP', 'cmH2O', 0, 35, 1, s.peep);
-        if (s.mode !== 'SPONT') num('rate', 'Rate', 'b/min', 1, 80, 1, s.rate);
-        if (s.mode === 'APVCMV' || s.mode === 'SCMV') num('vt', 'Vt', 'ml', 100, 1000, 10, s.vt);
-        if (s.mode === 'PCV') num('pcontrol', 'ΔPcontrol', 'cmH2O', 5, 60, 1, s.pcontrol);
-        if (s.mode === 'SPONT') num('psupport', 'ΔPsupport', 'cmH2O', 0, 60, 1, s.psupport);
-        if (s.mode !== 'SPONT') {
-          if (s.timingMode === 'ie') items.push({ key: 'ie', label: 'I:E', unit: '', min: 0, max: IE_OPTIONS.length - 1, step: 1, value: Math.max(0, IE_OPTIONS.findIndex((o) => o.value === ieKey(s.ie))), fmtFn: (i) => IE_OPTIONS[i].label });
-          else num('ti', 'TI', 's', 0.1, 3, 0.05, s.ti, (v) => Number(v).toFixed(2));
-        }
-        if (s.mode === 'SCMV') num('tip', 'Pause', '%', 0, 30, 5, s.tip);
-        else num('pramp', 'P-ramp', 'ms', 0, s.mode === 'SPONT' ? 200 : 600, 25, Math.min(s.pramp, s.mode === 'SPONT' ? 200 : 600));
-        if (s.mode === 'SPONT') { num('ets', 'ETS', '%', 5, 80, 5, s.ets); num('tiMax', 'TI max', 's', 0.5, 3, 0.1, s.tiMax, (v) => Number(v).toFixed(1)); }
-        if (s.trigger.type === 'flow') num('trigger', 'Flowtrigger', 'l/min', 0.5, 20, 0.5, s.trigger.value);
-        else num('trigger', 'Trykktrigger', 'cmH2O', 0.5, 15, 0.5, s.trigger.value, (v) => `-${v}`);
-        if (s.mode === 'APVCMV') num('pmax', 'Pmax', 'cmH2O', 15, 70, 1, s.pmax);
-
-        let selected = items.some((i) => i.key === focusKey) ? focusKey : items[0].key;
-        const grid = h('div', { class: 'knob-grid' });
-        const adj = h('div', { class: 'adj' });
-        const applyValue = (item, v) => {
-          if (item.key === 'ie') changeSetting('ie', IE_OPTIONS[v].ie);
-          else if (item.key === 'trigger') applySetting('triggerValue', v);
-          else changeSetting(item.key, v);
-          openWindow('controls', item.key);
-        };
-        const renderGrid = () => {
-          grid.replaceChildren(...items.map((it) => h('button', { type: 'button', class: `knob ${it.key === selected ? 'active' : ''}`, onClick: () => { selected = it.key; ui.focusKey = it.key; renderGrid(); renderAdj(); rings.querySelectorAll('.knob').forEach((b) => b.classList.toggle('active', b.dataset.key === it.key)); } },
-            h('div', { class: 'ring' }, h('div', { class: 'ring-value' }, it.fmtFn(it.value)), h('div', { class: 'ring-unit' }, it.unit)), h('div', { class: 'ring-label' }, it.label))));
-        };
-        const renderAdj = () => {
-          const it = items.find((i) => i.key === selected);
-          const dec = Math.max(0, -Math.floor(Math.log10(it.step)));
-          const clampV = (v) => Number(Math.min(it.max, Math.max(it.min, v)).toFixed(dec));
-          const range = h('input', { type: 'range', min: String(it.min), max: String(it.max), step: String(it.step), value: String(it.value), 'aria-label': it.label, onChange: (e) => applyValue(it, clampV(Number(e.target.value))) });
-          adj.replaceChildren(
-            h('div', { class: 'adj-head' }, h('span', {}, it.label), h('span', { class: 'adj-val' }, it.fmtFn(it.value), ' ', h('small', {}, it.unit))),
-            h('div', { class: 'adj-row' },
-              h('button', { type: 'button', class: 'adj-btn', 'aria-label': 'Mindre', onClick: () => applyValue(it, clampV(it.value - it.step)) }, '−'),
-              range,
-              h('button', { type: 'button', class: 'adj-btn', 'aria-label': 'Mer', onClick: () => applyValue(it, clampV(it.value + it.step)) }, '+')));
-        };
-        renderGrid(); renderAdj();
-        content.append(h('div', { class: 'hc-section' }, `${MODES[s.mode].label} – trykk på en kontroll og juster`), grid);
-        const extras = h('div', { class: 'row', style: { marginTop: '10px', flexWrap: 'wrap', gap: '10px' } });
-        if (s.mode !== 'SPONT') extras.append(h('span', { class: 'muted' }, 'Tid via'), segmented({ ariaLabel: 'Tidsinnstilling', value: s.timingMode, options: [{ value: 'ie', label: 'I:E' }, { value: 'ti', label: 'TI' }], onChange: (v) => { applySetting('timingMode', v, { silent: true }); openWindow('controls', v); } }).el);
-        extras.append(h('span', { class: 'muted' }, 'Trigger'), segmented({ ariaLabel: 'Triggertype', value: s.trigger.type, options: [{ value: 'flow', label: 'Flow' }, { value: 'pressure', label: 'Trykk' }], onChange: (v) => { applySetting('triggerType', v); openWindow('controls', 'trigger'); } }).el);
-        if (s.mode === 'SCMV') extras.append(h('span', { class: 'muted' }, 'Flowmønster'), segmented({ ariaLabel: 'Flowmønster', value: s.flowPattern, options: [{ value: 'square', label: 'Firkant' }, { value: 'decel', label: 'Desel. 50 %' }], onChange: (v) => changeSetting('flowPattern', v) }).el);
-        content.append(extras, h('p', { class: 'faint', style: { marginTop: '8px', fontSize: '0.8rem' } }, 'Endringer virker fra neste pust.'), adj);
-      } else if (tab === 'patient') {
+      if (tab === 'patient') {
         const p = vent.patient;
-        content.append(h('div', { class: 'hc-section' }, 'Pasient (IBW beregnes fra kjønn og høyde)'));
-        content.append(h('div', { class: 'row' }, h('span', { class: 'muted' }, 'Kjønn'), segmented({ ariaLabel: 'Kjønn', value: p.sex, options: [{ value: 'M', label: 'Mann' }, { value: 'K', label: 'Kvinne' }], onChange: (v) => { vent.setPatient({ sex: v }); renderTop(); renderTab(); } }).el));
-        content.append(slider({ label: 'Pasienthøyde', unit: 'cm', min: 30, max: 250, step: 1, value: p.height, onChange: (v) => { vent.setPatient({ height: v }); renderTop(); renderTab(); } }).el);
-        content.append(h('p', { class: 'muted' }, `IBW ${fmt(idealBodyWeightHamilton(p.height, p.sex), 1)} kg · Vt 8 ml/kg = ${fmt(8 * idealBodyWeightHamilton(p.height, p.sex), 0)} ml`));
-      } else {
-        content.append(h('div', { class: 'hc-section' }, 'Apné-backup'));
-        sl('apneaTime', { label: 'Apnétid', unit: 's', min: 5, max: 60, step: 5, value: s.apneaTime });
-        add('backupRate', slider({ label: 'Backup rate', unit: 'b/min', min: 4, max: 30, step: 1, value: s.backup.rate, onChange: (v) => applySetting('backupRate', v) }));
-        add('backupPcontrol', slider({ label: 'Backup ΔPinsp', unit: 'cmH2O', min: 5, max: 40, step: 1, value: s.backup.pcontrol, onChange: (v) => applySetting('backupPcontrol', v) }));
+        content.append(h('div', { class: 'hc-section' }, 'Pasient (IBW beregnes fra kjønn og høyde, som på C6)'));
+        content.append(h('div', { class: 'row', style: { gap: '8px' } }, h('button', { type: 'button', class: `mode-btn ${p.sex === 'M' ? 'current' : ''}`, onClick: () => { vent.setPatient({ sex: 'M' }); renderTop(); renderTab(); } }, 'Mann'), h('button', { type: 'button', class: `mode-btn ${p.sex === 'K' ? 'current' : ''}`, onClick: () => { vent.setPatient({ sex: 'K' }); renderTop(); renderTab(); } }, 'Kvinne')));
+        const item = { key: 'height', label: 'Pasienthøyde', unit: 'cm', min: 30, max: 250, step: 1, dec: 0, value: p.height, fmtFn: String };
+        content.append(h('div', { class: 'knob-grid' }, knobEl(item, true, () => {})), h('p', { class: 'muted' }, `IBW ${fmt(idealBodyWeightHamilton(p.height, p.sex), 1)} kg · Vt 8 ml/kg = ${fmt(8 * idealBodyWeightHamilton(p.height, p.sex), 0)} ml`));
+        content.append(adjuster(item, (v) => { vent.setPatient({ height: v }); renderTop(); renderTab(); }));
+        return;
       }
-      if (focusKey) content.querySelector('.highlight')?.scrollIntoView({ block: 'center' });
+      const keys = controlKeys(s, tab);
+      const items = keys.map((k) => ctlItem(k, s));
+      let selected = items.some((i) => i.key === ui.focusKey) ? ui.focusKey : items[0].key;
+      const grid = h('div', { class: 'knob-grid' });
+      const adjBox = h('div', {});
+      const applyValue = (item, v) => {
+        if (pending) { Object.assign(pending.settings, item.set(v)); openWindow('controls', item.key); return; }
+        if (item.key === 'trigger' || tab === 'more') { applyPartial(item.set(v), { label: item.key }); openWindow('controls', item.key); return; }
+        changeSetting(item.key, v, () => openWindow('controls', item.key));
+      };
+      const renderGrid = () => {
+        grid.replaceChildren(...items.map((it) => knobEl(it, it.key === selected, () => { selected = it.key; ui.focusKey = it.key; renderGrid(); renderAdj(); rings.querySelectorAll('.knob').forEach((b) => b.classList.toggle('active', !pending && b.dataset.key === it.key)); })));
+      };
+      const renderAdj = () => { const it = items.find((i) => i.key === selected); adjBox.replaceChildren(adjuster(it, (v) => applyValue(it, v))); };
+      renderGrid(); renderAdj();
+      content.append(grid);
+      const extras = h('div', { class: 'row', style: { marginTop: '8px', flexWrap: 'wrap', gap: '8px 14px' } });
+      const setLocal = (partial, focus) => { if (pending) { Object.assign(pending.settings, partial); openWindow('controls', focus); } else { applyPartial(partial, { silent: true }); openWindow('controls', focus); } };
+      if (tab === 'basic') {
+        if (s.mode !== 'SPONT') extras.append(h('span', { class: 'muted' }, 'Tid via'), segmented({ ariaLabel: 'Tidsinnstilling', value: s.timingMode, options: [{ value: 'ie', label: 'I:E' }, { value: 'ti', label: 'TI' }], onChange: (v) => setLocal({ timingMode: v }, v) }).el);
+        extras.append(h('span', { class: 'muted' }, 'Trigger'), segmented({ ariaLabel: 'Triggertype', value: s.trigger.type, options: [{ value: 'flow', label: 'F' }, { value: 'pressure', label: 'P' }], onChange: (v) => setLocal({ trigger: { type: v, value: 2 } }, 'trigger') }).el);
+        if (s.mode === 'SCMV') extras.append(h('span', { class: 'muted' }, 'Flowmønster'), segmented({ ariaLabel: 'Flowmønster', value: s.flowPattern, options: [{ value: 'square', label: 'Firkant' }, { value: 'decel', label: 'Desel. 50 %' }], onChange: (v) => setLocal({ flowPattern: v }, 'tip') }).el);
+      } else {
+        extras.append(h('span', { class: 'muted' }, 'Apné-backup: trykkontrollert ventilasjon når pasienten ikke puster innen apnétiden.'));
+      }
+      content.append(extras, adjBox);
     };
-    head.insertBefore(tabBar, head.lastChild);
-    body.append(content);
-    renderTab();
+    renderTab(); renderInfo();
+    win.main.append(content);
+    win.foot.append(h('div', { class: 'row', style: { gap: '14px' } }, modeName, info), pending
+      ? h('div', { class: 'row' }, c6btn('Avbryt', { onClick: closeWindow }), c6btn('Bekreft', { onClick: () => { const ns = pending.settings; ui.pending = null; applyPartial(ns, { label: 'mode' }); closeWindow(); } }))
+      : h('span', { class: 'faint', style: { fontSize: '0.78rem' } }, 'Endringer virker fra neste pust.'));
   }
 
-  function renderMonitor(body) {
+  // ---------- Alarmer ----------
+  function renderAlarms(win, focusKey) {
+    const m = withGas(vent.measurements);
+    let selected = focusKey && ALARM_DEF[focusKey] ? focusKey : 'pmax';
+    const grid = h('div', { class: 'alarm-grid' });
+    const adjBox = h('div', {});
+    const limItem = (key) => { const d = ALARM_DEF[key]; return { key, label: d.label, unit: ALARM_COLS.find((c) => c.hi === key || c.lo === key)?.unit ?? '', min: d.min, max: d.max, step: d.step, dec: d.dec ?? 0, value: limitValue(key), fmtFn: (v) => (d.dec ? Number(v).toFixed(d.dec) : String(v)) }; };
+    const setLimit = (key, v) => { if (key === 'pmax') applySetting('pmax', v); else { ui.alarms[key] = v; logEvent(`Alarmgrense ${ALARM_DEF[key].label}: ${v}`); } updateMMP(vent.measurements); openWindow('alarms', key); };
+    const render = () => {
+      grid.replaceChildren(...ALARM_COLS.map((c) => {
+        const pct = (x) => Math.max(0, Math.min(100, (100 * (x - c.min)) / (c.max - c.min)));
+        const cur = c.measure ? m[c.measure] : null;
+        const mini = (key) => { if (!key) return h('div', { class: 'knob placeholder' }, h('div', { class: 'ring none' }, '—')); const it = limItem(key); return knobEl({ ...it, label: '' }, key === selected, () => { selected = key; ui.focusKey = key; render(); }); };
+        return h('div', { class: 'alarm-col' }, mini(c.hi),
+          h('div', { class: 'alarm-bar' },
+            c.hi ? h('div', { class: 'lim hi', style: { bottom: `${pct(limitValue(c.hi))}%` } }) : null,
+            c.lo ? h('div', { class: 'lim lo', style: { bottom: `${pct(limitValue(c.lo))}%` } }) : null,
+            cur != null && Number.isFinite(cur) ? h('div', { class: 'cur', style: { bottom: `${pct(cur)}%` } }) : null),
+          mini(c.lo), h('div', { class: 'alarm-label' }, c.label, h('small', {}, c.unit)));
+      }));
+      adjBox.replaceChildren(adjuster(limItem(selected), (v) => setLimit(selected, v)));
+    };
+    render();
+    win.main.append(h('div', { class: 'hc-section' }, 'Grenser (øvre ring = høy grense, nedre ring = lav grense; søylen viser måleverdien)'), grid, adjBox);
+    win.main.append(h('p', { class: 'faint', style: { fontSize: '0.8rem' } }, `Plimit = Pmax − 10 = ${vent.settings.pmax - 10} cmH2O begrenser levert trykk. Ved Pmax åpnes ekspirasjonsventilen (høyprioritetsalarm).`));
+    const auto = c6btn('Auto', { onClick: () => {
+      const r = (v, s) => Math.round(v / s) * s;
+      if (m.expMinVol) { ui.alarms.mvHigh = Math.max(2, r(m.expMinVol * 1.5, 0.5)); ui.alarms.mvLow = Math.max(0.5, r(m.expMinVol * 0.5, 0.5)); }
+      if (m.vte) { ui.alarms.vtHigh = Math.min(2000, r(m.vte * 1.5, 10)); ui.alarms.vtLow = Math.max(50, r(m.vte * 0.5, 10)); }
+      if (m.fTotal) ui.alarms.fHigh = Math.min(80, Math.round(m.fTotal + 15));
+      if (m.ppeak) applySetting('pmax', Math.min(70, Math.max(15, Math.round(m.ppeak + 15))));
+      logEvent('Alarmgrenser satt automatisk rundt gjeldende verdier'); updateMMP(vent.measurements); openWindow('alarms', selected);
+    } });
+    const buffer = h('div', { class: 'event-list' }, ...(ui.activeAlarms.length ? ui.activeAlarms.map((a) => h('div', { class: `ev ${a.priority}` }, h('time', {}, a.priority === 'high' ? 'HØY' : 'MIDDELS'), h('span', {}, a.text))) : [h('div', { class: 'muted' }, 'Ingen aktive alarmer.')]));
+    win.main.append(h('div', { class: 'hc-section' }, 'Aktive alarmer'), buffer);
+    win.foot.append(auto, h('span', { class: 'faint', style: { fontSize: '0.78rem' } }, 'Auto setter grensene rundt gjeldende måleverdier (som på C6).'));
+  }
+
+  // ---------- Monitorering ----------
+  function renderMonitor(win) {
+    let tab = 'general';
+    const SETS = {
+      general: ['ppeak', 'pmean', 'peepTotal', 'pplat', 'autoPeep', 'drivingPressure', 'vti', 'vte', 'vtPerKg', 'expMinVol', 'fTotal', 'fSpont', 'spo2', 'petco2'],
+      more: ['cstat', 'rinsp', 'rcexp', 'ti', 'te', 'ieText', 'pinsp', 'ibw', 'paco2', 'pao2'],
+    };
     const grid = h('div', { class: 'mon-grid' });
-    const tiles = {};
-    for (const d of MMP_ALL) { const val = h('div', { class: 'mmp-value' }, '–'); tiles[d.key] = { val, d }; grid.append(h('div', { class: 'mmp' }, h('div', { class: 'mmp-main' }, h('div', { class: 'mmp-label' }, d.label, h('span', { class: 'mmp-unit' }, d.unit)), val))); }
     const extra = h('div', { class: 'muted', style: { marginTop: '10px', fontSize: '0.85rem' } });
-    body.append(grid, extra);
-    monitorRefresh = (m) => {
-      for (const [k, t] of Object.entries(tiles)) t.val.textContent = t.d.d === null ? (m[k] ?? '–') : fmt(m[k], t.d.d);
-      extra.textContent = `Siste pust: ${({ mandatory: 'maskinstyrt', triggered: 'pasienttrigget (mandatorisk)', spont: 'spontan (trykkstøtte)', backup: 'backup' })[m.breathType] ?? '–'}${m.cycleReason ? ` · syklet av ${m.cycleReason}` : ''}. Pplateau ved hold: ${fmt(m.pplatMeasured, 1)} · AutoPEEP ved hold: ${fmt(m.autoPeepMeasured, 1)}.`;
+    const render = () => {
+      win.tabs([['general', 'Generelt'], ['more', 'Mer']], tab, (id) => { tab = id; render(); });
+      const tiles = {};
+      grid.replaceChildren(...SETS[tab].map((k) => { const d = MMP_ALL.find((x) => x.key === k); const val = h('div', { class: 'mmp-value' }, '–'); tiles[k] = { val, d }; return h('div', { class: 'mmp' }, h('div', { class: 'mmp-main' }, val, h('div', { class: 'mmp-label' }, d.label, h('span', { class: 'mmp-unit' }, d.unit)))); }));
+      monitorRefresh = (m) => {
+        for (const [k, t] of Object.entries(tiles)) t.val.textContent = t.d.d === null ? (m[k] ?? '–') : fmt(m[k], t.d.d);
+        extra.textContent = `Siste pust: ${({ mandatory: 'maskinstyrt', triggered: 'pasienttrigget (mandatorisk)', spont: 'spontan (trykkstøtte)', backup: 'backup' })[m.breathType] ?? '–'}${m.cycleReason ? ` · syklet av ${m.cycleReason}` : ''}. Pplateau ved hold: ${fmt(m.pplatMeasured, 1)} · AutoPEEP ved hold: ${fmt(m.autoPeepMeasured, 1)}.`;
+      };
+      monitorRefresh(withGas(vent.measurements));
     };
-    monitorRefresh(withGas(vent.measurements));
+    render();
+    win.main.append(grid, extra);
   }
 
-  function renderGraphics(body) {
-    body.append(h('div', { class: 'hc-section' }, 'Oppsett (som C6: kurver + intelligente paneler eller sløyfer)'));
-    body.append(segmented({ ariaLabel: 'Oppsett', value: ui.layout, options: [{ value: 'panels', label: 'Dynamic Lung + Vent Status' }, { value: 'loops', label: 'Sløyfer' }, { value: 'curves', label: 'Tre kurver' }], onChange: (v) => { ui.layout = v; applyLayout(); } }).el);
-    body.append(h('div', { class: 'hc-section' }, 'Tidsskala (s)'));
-    body.append(segmented({ ariaLabel: 'Tidsskala', value: String(sc.paw.sweep ?? 11), options: [{ value: '5.5', label: '5,5' }, { value: '11', label: '11' }, { value: '22', label: '22' }, { value: '33', label: '33' }], onChange: (v) => { for (const s of Object.values(sc)) { s.setSweep(Number(v)); s.sweep = Number(v); } } }).el);
-    body.append(h('p', { class: 'faint', style: { fontSize: '0.85rem' } }, 'Hamilton-C6 bruker 22 s som standard for voksne; her er 11 s valgt fordi skjermen er mindre.'));
-    body.append(h('div', { class: 'hc-section' }, 'Frys'));
-    body.append(toggle({ label: 'Frys kurvene (ventilasjonen fortsetter)', checked: ui.frozen, onChange: (v) => { ui.frozen = v; hc.classList.toggle('frozen', v); } }).el);
+  // ---------- Grafikk ----------
+  function renderGraphics(win) {
+    const thumbs = [
+      [1, 'Oppsett 1', h('div', { class: 'thumb' }, h('i', {}), h('i', {}), h('i', {}))],
+      [2, 'Oppsett 2', h('div', { class: 'thumb' }, h('i', {}), h('i', {}), h('span', { class: 'half' }, h('i', {}), h('i', {})))],
+      [3, 'Oppsett 3', h('div', { class: 'thumb' }, h('i', {}), h('i', {}), h('span', { class: 'half blue' }, h('i', {}), h('i', {})))],
+      [4, 'Oppsett 4', h('div', { class: 'thumb' }, h('i', {}), h('span', { class: 'half blue tall' }, h('i', {}), h('i', {})))],
+    ];
+    const row = h('div', { class: 'layout-row' });
+    const render = () => row.replaceChildren(...thumbs.map(([id, label, th]) => h('button', { type: 'button', class: `layout-btn ${ui.layout === id ? 'current' : ''}`, onClick: () => { ui.layout = id; applyLayout(); render(); } }, th, h('span', {}, label))));
+    render();
+    win.main.append(h('div', { class: 'hc-section' }, 'Oppsett'), row);
+    win.main.append(h('p', { class: 'faint', style: { fontSize: '0.8rem' } }, '1: tre kurver. 2: to kurver + sløyfer. 3: to kurver + Dynamic Lung og Vent Status. 4: Paw + store paneler.'));
+    win.main.append(h('div', { class: 'hc-section' }, 'Tidsskala (s)'));
+    win.main.append(segmented({ ariaLabel: 'Tidsskala', value: String(sc.paw.sweep ?? 11), options: [{ value: '5.5', label: '5,5' }, { value: '11', label: '11' }, { value: '22', label: '22' }, { value: '33', label: '33' }], onChange: (v) => { for (const s of Object.values(sc)) { s.setSweep(Number(v)); s.sweep = Number(v); } } }).el);
+    win.main.append(h('p', { class: 'faint', style: { fontSize: '0.8rem' } }, 'C6 bruker 22 s som standard for voksne; her er 11 s valgt fordi skjermen er mindre.'));
+    win.main.append(h('div', { class: 'hc-section' }, 'Frys'));
+    win.main.append(toggle({ label: 'Frys kurvene (ventilasjonen fortsetter)', checked: ui.frozen, onChange: (v) => setFrozen(v) }).el);
+    win.foot.append(c6btn('Standard', { onClick: () => { ui.layout = 3; applyLayout(); for (const s of Object.values(sc)) { s.setSweep(11); s.sweep = 11; } setFrozen(false); openWindow('graphics', true); } }));
   }
+  function setFrozen(v) { ui.frozen = v; hc.classList.toggle('frozen', v); freezeBtn.classList.toggle('on', v); }
 
-  function renderTools(body) {
+  // ---------- Verktøy ----------
+  function renderTools(win) {
     const result = h('div', { class: 'feedback info', style: { minHeight: '48px' } }, 'Hold inne knappen. Holdet starter ved neste faseovergang og varer til du slipper (maks 10 s).');
     const mkHold = (type, label) => {
-      const btn = h('button', { type: 'button', class: 'hc-btn hc-hold' }, h('span', { class: 'ico' }, '⏸'), label);
+      const btn = h('button', { type: 'button', class: 'btn-c6 hc-hold' }, label);
       const start = (e) => { e.preventDefault(); btn.setPointerCapture?.(e.pointerId); vent.requestHold(type); btn.classList.add('holding'); };
       const stop = () => { if (!btn.classList.contains('holding')) return; vent.releaseHold(); btn.classList.remove('holding'); };
       btn.addEventListener('pointerdown', start); btn.addEventListener('pointerup', stop); btn.addEventListener('pointercancel', stop); btn.addEventListener('lostpointercapture', stop);
       return btn;
     };
-    body.append(h('div', { class: 'hc-section' }, 'Manøvrer'), h('div', { class: 'grid grid-2' }, mkHold('insp', 'Insp. hold (Pplateau)'), mkHold('exp', 'Eksp. hold (AutoPEEP)')), result);
+    win.main.append(h('div', { class: 'hc-section' }, 'Manøvrer'), h('div', { class: 'grid grid-2' }, mkHold('insp', 'Insp. hold (Pplateau)'), mkHold('exp', 'Eksp. hold (AutoPEEP)')), result);
     toolsRefresh = () => {
       const r = vent.holdResult; if (!r) return;
       clear(result);
@@ -513,47 +632,91 @@ export function mountRespirator(container, ctx) {
       else if (r.type === 'insp') result.append(h('b', {}, `Pplateau målt: ${fmt(r.pplat, 1)} cmH2O`), h('div', { class: 'muted' }, `Ppeak − Pplat = ${fmt(vent.measurements.ppeak - r.pplat, 1)} (resistiv del). Pplat − PEEPtot = ${fmt(r.pplat - vent.measurements.peepTotal, 1)} (drivtrykk).`));
       else result.append(h('b', {}, `PEEP totalt: ${fmt(r.peepTotal, 1)} cmH2O → AutoPEEP ${fmt(r.autoPeep, 1)} cmH2O`), h('div', { class: 'muted' }, `Innstilt PEEP ${vent.settings.peep}.`));
     };
-    body.append(h('div', { class: 'hc-section' }, 'Annet'));
-    body.append(h('div', { class: 'row' }, button('Manuell pust', { onClick: () => { if (vent.manualBreath()) logEvent('Manuell pust'); else toast('Vent til ekspirasjonsfasen.', { kind: 'warn' }); } }), button(ui.o2Enrich ? 'Avbryt O2-anrikning' : 'O2-anrikning (100 % i 2 min)', { onClick: () => { toggleO2Enrich(); openWindow('tools', true); } })));
-    body.append(h('div', { class: 'hc-section' }, 'Simulering'));
-    body.append(h('div', { class: 'row' }, h('span', { class: 'muted' }, 'Hastighet'), segmented({ ariaLabel: 'Hastighet', value: String(ui.speed), options: [{ value: '1', label: '1×' }, { value: '2', label: '2×' }, { value: '4', label: '4×' }], onChange: (v) => { ui.speed = Number(v); renderClock(); } }).el));
+    win.main.append(h('div', { class: 'hc-section' }, 'Annet'));
+    win.main.append(h('div', { class: 'row' }, c6btn('Manuell pust', { onClick: () => { if (vent.manualBreath()) logEvent('Manuell pust'); else toast('Vent til ekspirasjonsfasen.', { kind: 'warn' }); } }), c6btn(ui.o2Enrich ? 'Avbryt O2-anrikning' : 'O2-anrikning (100 % i 2 min)', { onClick: () => { toggleO2Enrich(); openWindow('tools', true); } })));
+    win.main.append(h('div', { class: 'hc-section' }, 'Simulering'));
+    win.main.append(h('div', { class: 'row' }, h('span', { class: 'muted' }, 'Hastighet'), segmented({ ariaLabel: 'Hastighet', value: String(ui.speed), options: [{ value: '1', label: '1×' }, { value: '2', label: '2×' }, { value: '4', label: '4×' }], onChange: (v) => { ui.speed = Number(v); renderClock(); } }).el));
   }
   let toolsRefresh = null;
 
-  function renderEvents(body) {
-    if (!ui.events.length) { body.append(h('p', { class: 'muted' }, 'Ingen hendelser ennå. Alarmer, innstillingsendringer og manøvrer logges her.')); return; }
-    body.append(h('div', { class: 'event-list' }, ...ui.events.map((e) => h('div', { class: `ev ${e.priority}` }, h('time', {}, clock(e.t)), h('span', {}, e.text)))));
+  // ---------- Hendelser ----------
+  function renderEvents(win) {
+    if (!ui.events.length) { win.main.append(h('p', { class: 'muted' }, 'Ingen hendelser ennå. Alarmer, innstillingsendringer og manøvrer logges her.')); return; }
+    win.main.append(h('div', { class: 'event-list' }, ...ui.events.map((e) => h('div', { class: `ev ${e.priority}` }, h('time', {}, clock(e.t)), h('span', {}, e.text)))));
   }
 
-  function renderSystem(body) {
-    body.append(h('div', { class: 'hc-section' }, 'Lyd'));
-    const o = audio.options;
-    const setO = (p) => { audio.setOptions(p); saveAudio(); };
-    body.append(h('p', { class: 'faint', style: { fontSize: '0.85rem' } }, audio.enabled ? 'Lyd er på.' : 'Slå på lyd med «Lyd»-knappen nederst (nettleseren krever et trykk først).'));
-    body.append(slider({ label: 'Volum', unit: '', min: 0, max: 1, step: 0.05, value: o.volume, onChange: (v) => setO({ volume: v }) }).el);
-    body.append(h('div', { class: 'row' },
-      toggle({ label: 'Respirator og pust', checked: o.breath, onChange: (v) => setO({ breath: v }) }).el,
-      toggle({ label: 'Pasientlyder', checked: o.patient, onChange: (v) => setO({ patient: v }) }).el,
-      toggle({ label: 'Alarmer', checked: o.alarms, onChange: (v) => setO({ alarms: v }) }).el,
-      toggle({ label: 'Pulstone (SpO2)', checked: o.pulse, onChange: (v) => setO({ pulse: v }) }).el));
-    body.append(h('div', { class: 'hc-section' }, 'Nullstilling'));
-    body.append(h('div', { class: 'row' },
-      button('Nullstill innstillinger', { onClick: () => { vent.setSettings({ ...structuredClone(DEFAULT_SETTINGS), vt: startupVt(vent.patient) }); vent.reset(); logEvent('Innstillinger nullstilt'); refreshAll(); } }),
-      button('Slett lagret fremdrift', { variant: 'danger', onClick: () => { storage.remove('respirator:progress'); progress.predictions = { correct: 0, total: 0 }; toast('Fremdrift slettet'); } })));
-    body.append(h('div', { class: 'hc-section' }, 'Info'));
-    body.append(h('p', { class: 'muted', style: { fontSize: '0.9rem' } }, 'Læringsverktøy, ikke til klinisk bruk. Skjermen er lagt opp etter HAMILTON-C6s hovedskjerm (brukerhåndbok kap. 2.2.2), men er ikke en gjengivelse av programvaren. Formler og kilder: ', h('a', { href: './KILDER.md', target: '_blank' }, 'KILDER.md'), '.'));
+  // ---------- System ----------
+  function renderSystem(win) {
+    let tab = 'info';
+    const content = h('div', {});
+    const render = () => {
+      win.tabs([['info', 'Info'], ['sound', 'Lyd'], ['reset', 'Nullstill']], tab, (id) => { tab = id; render(); });
+      clear(content);
+      if (tab === 'info') {
+        const rowI = (k, v) => h('div', { class: 'info-row' }, h('span', {}, k), h('b', {}, v));
+        content.append(rowI('Modell', 'IntensivLab respiratorsimulator (etter HAMILTON-C6)'), rowI('Simulert tid', clock(vent.time)), rowI('Modus', MODES[vent.settings.mode].label), rowI('Pasient', `${vent.patient.sex === 'K' ? 'Kvinne' : 'Mann'}, ${vent.patient.height} cm, IBW ${fmt(idealBodyWeightHamilton(vent.patient.height, vent.patient.sex), 0)} kg`));
+        content.append(h('p', { class: 'muted', style: { fontSize: '0.85rem', marginTop: '10px' } }, 'Læringsverktøy, ikke til klinisk bruk. Skjermen er lagt opp etter HAMILTON-C6, men er ikke en gjengivelse av programvaren. Formler og kilder: ', h('a', { href: './KILDER.md', target: '_blank' }, 'KILDER.md'), '.'));
+      } else if (tab === 'sound') {
+        const o = audio.options;
+        const setO = (p) => { audio.setOptions(p); saveAudio(); };
+        content.append(h('p', { class: 'faint', style: { fontSize: '0.85rem' } }, audio.enabled ? 'Lyd er på.' : 'Slå på lyd med «Lyd»-knappen nederst til venstre (nettleseren krever et trykk først).'));
+        content.append(slider({ label: 'Volum', unit: '', min: 0, max: 1, step: 0.05, value: o.volume, onChange: (v) => setO({ volume: v }) }).el);
+        content.append(h('div', { class: 'row', style: { flexWrap: 'wrap' } },
+          toggle({ label: 'Respirator og pust', checked: o.breath, onChange: (v) => setO({ breath: v }) }).el,
+          toggle({ label: 'Pasientlyder', checked: o.patient, onChange: (v) => setO({ patient: v }) }).el,
+          toggle({ label: 'Alarmer', checked: o.alarms, onChange: (v) => setO({ alarms: v }) }).el,
+          toggle({ label: 'Pulstone (SpO2)', checked: o.pulse, onChange: (v) => setO({ pulse: v }) }).el));
+      } else {
+        content.append(h('div', { class: 'row', style: { flexWrap: 'wrap' } },
+          c6btn('Nullstill innstillinger', { onClick: () => { vent.setSettings({ ...structuredClone(DEFAULT_SETTINGS), vt: startupVt(vent.patient) }); vent.reset(); logEvent('Innstillinger nullstilt'); refreshAll(); } }),
+          c6btn('Slett lagret fremdrift', { onClick: () => { storage.remove('respirator:progress'); progress.predictions = { correct: 0, total: 0 }; toast('Fremdrift slettet'); } })));
+      }
+    };
+    render();
+    win.main.append(content);
   }
 
-  // ======================= Hurtigknapper og vindusknapper =======================
-  const soundBtn = h('button', { type: 'button', class: 'hc-btn', onClick: async () => {
+  // ---------- Standby ----------
+  function renderStandby(win) {
+    win.head.style.display = 'none';
+    const p = vent.patient;
+    const item = { key: 'height', label: 'Pasienthøyde', unit: 'cm', min: 30, max: 250, step: 1, dec: 0, value: p.height, fmtFn: String };
+    const body = h('div', { class: 'standby-body' },
+      h('div', { class: 'standby-tabs' }, h('button', { type: 'button', disabled: true }, 'Neonatal'), h('button', { type: 'button', class: 'active' }, 'Voksen/barn'), h('button', { type: 'button', disabled: true }, 'Siste pasient')),
+      h('div', { class: 'standby-row' },
+        h('div', { class: 'row', style: { gap: '8px' } }, h('button', { type: 'button', class: `mode-btn ${p.sex === 'M' ? 'current' : ''}`, onClick: () => { vent.setPatient({ sex: 'M' }); openWindow('standby', true); } }, '♂ Mann'), h('button', { type: 'button', class: `mode-btn ${p.sex === 'K' ? 'current' : ''}`, onClick: () => { vent.setPatient({ sex: 'K' }); openWindow('standby', true); } }, '♀ Kvinne')),
+        h('div', { class: 'row', style: { gap: '14px', alignItems: 'center' } }, knobEl(item, true, () => {}), h('div', {}, h('b', { style: { fontSize: '1.6rem', fontWeight: 300 } }, fmt(idealBodyWeightHamilton(p.height, p.sex), 0)), ' kg', h('small', { style: { display: 'block' } }, 'IBW')))),
+      adjuster(item, (v) => { vent.setPatient({ height: v }); openWindow('standby', true); }),
+      h('div', { class: 'row', style: { marginTop: '10px', justifyContent: 'space-between' } }, c6btn('Forhåndssjekk', { onClick: () => toast('Forhåndssjekk: simulert OK.', { kind: 'ok' }) }), c6btn('Start ventilasjon', { green: true, onClick: () => startVentilation() })));
+    win.main.append(h('div', { class: 'standby-head' }, h('div', { class: 'standby-title' }, 'Standby'), h('div', { class: 'standby-sub' }, 'Ingen ventilasjon leveres til pasienten')), body);
+  }
+  function enterStandby() {
+    if (!ui.running) return;
+    ui.running = false; logEvent('Standby');
+    standbyBtn.classList.add('on');
+    renderTop(); openWindow('standby', true);
+  }
+  function startVentilation() {
+    ui.running = true; logEvent('Ventilasjon startet');
+    standbyBtn.classList.remove('on');
+    ui.lastBreathTime = vent.time;
+    closeWindow(); refreshAll();
+  }
+
+  // ======================= Hurtigknapper og bunnlinje =======================
+  const soundBtn = h('button', { type: 'button', class: 'hc-btn', title: 'Lyd av/på', onClick: async () => {
     if (audio.enabled) audio.disable(); else if (!(await audio.enable())) { toast('Nettleseren støtter ikke lyd her.', { kind: 'warn' }); return; }
     soundBtn.classList.toggle('on', audio.enabled); soundBtn.replaceChildren(h('span', { class: 'ico' }, audio.enabled ? '🔊' : '🔇'), 'Lyd'); renderMsgBar();
   } }, h('span', { class: 'ico' }, '🔇'), 'Lyd');
+  const silenceBtn = h('button', { type: 'button', class: 'hc-btn', title: 'Audio pause 2 min', onClick: () => { if (!audio.enabled) { toast('Slå på lyd først.', { kind: 'warn' }); return; } audio.silenced ? audio.unsilence() : audio.silence(120); logEvent(audio.silenced ? 'Audio pause 2 min' : 'Audio pause avbrutt'); renderMsgBar(); } }, h('span', { class: 'ico' }, '🔕'), 'Pause');
   const o2Btn = h('button', { type: 'button', class: 'hc-btn', title: 'O2-anrikning: 100 % i 2 min', onClick: () => toggleO2Enrich() }, h('span', { class: 'ico' }, 'O₂'), '2 min');
-  const breathBtn = h('button', { type: 'button', class: 'hc-btn', onClick: () => { if (vent.manualBreath()) logEvent('Manuell pust'); } }, h('span', { class: 'ico' }, '💨'), 'Man. pust');
-  const standbyBtn = h('button', { type: 'button', class: 'hc-btn', onClick: () => { ui.running = !ui.running; standbyBtn.replaceChildren(h('span', { class: 'ico' }, ui.running ? '⏻' : '▶'), ui.running ? 'Standby' : 'Start'); standbyBtn.classList.toggle('on', !ui.running); logEvent(ui.running ? 'Ventilasjon startet' : 'Standby'); } }, h('span', { class: 'ico' }, '⏻'), 'Standby');
-  quick.append(breathBtn, o2Btn, soundBtn, standbyBtn);
-  for (const id of BOTTOM_WINDOWS) bottom.append(h('button', { type: 'button', class: 'hc-btn', dataset: { win: id }, onClick: () => openWindow(id) }, Object.fromEntries(WINDOWS)[id]));
+  const breathBtn = h('button', { type: 'button', class: 'hc-btn', title: 'Manuell pust', onClick: () => { if (vent.manualBreath()) logEvent('Manuell pust'); } }, h('span', { class: 'ico' }, '💨'), 'Man. pust');
+  const standbyBtn = h('button', { type: 'button', class: 'hc-btn', title: 'Standby', onClick: () => { if (ui.running) enterStandby(); else openWindow('standby', true); } }, h('span', { class: 'ico' }, '⏻'), 'Standby');
+  quick.append(silenceBtn, breathBtn, o2Btn, soundBtn, standbyBtn);
+  const homeBtn = h('button', { type: 'button', class: 'hc-btn icon', title: 'Hovedskjerm', onClick: () => { if (ui.running) closeWindow(); } }, '⌂');
+  const freezeBtn = h('button', { type: 'button', class: 'hc-btn icon', title: 'Frys kurvene', onClick: () => setFrozen(!ui.frozen) }, '⟨⟩');
+  bottom.append(homeBtn, freezeBtn);
+  for (const id of BOTTOM_WINDOWS) bottom.append(h('button', { type: 'button', class: 'hc-btn', dataset: { win: id }, onClick: () => openWindow(id) }, WINDOWS[id]));
 
   function toggleO2Enrich() {
     if (ui.o2Enrich) { applySetting('fio2', ui.o2Enrich.prev, { silent: true }); ui.o2Enrich = null; logEvent('O2-anrikning avbrutt'); o2Btn.classList.remove('on'); }
@@ -601,7 +764,7 @@ export function mountRespirator(container, ctx) {
     body.append(h('div', { class: 'hc-section' }, 'Gassutveksling (forenklet)'));
     body.append(slider({ label: 'Shunt', unit: '%', min: 0, max: 60, step: 1, value: Math.round(gas.params.shunt * 100), onChange: (v) => { gas.setParams({ shunt: v / 100 }); ui.profileId = 'egen'; } }).el);
     body.append(slider({ label: 'Rekrutterbarhet med PEEP', unit: '', min: 0, max: 1, step: 0.1, value: gas.params.recruitability, onChange: (v) => { gas.setParams({ recruitability: v }); ui.profileId = 'egen'; } }).el);
-    body.append(h('p', { class: 'faint', style: { fontSize: '0.82rem' } }, 'Høyde og kjønn (IBW) settes på respiratoren under Kontroller › Pasient, som på C6.'));
+    body.append(h('p', { class: 'faint', style: { fontSize: '0.82rem' } }, 'Høyde og kjønn (IBW) settes på respiratoren under Kontroller › Pasient eller i Standby, som på C6.'));
     refreshInfo();
   }
   function applyProfile(id) {
@@ -687,7 +850,7 @@ export function mountRespirator(container, ctx) {
     const sit = createSituation(def, { hooks });
     sit.start(vent.time);
     ui.situation = { sit, def, index, feedEl: h('div', { class: 'feed' }), summary: null, decisionEl: null };
-    ui.running = true; ui.events = [];
+    ui.running = true; standbyBtn.classList.remove('on'); closeWindow(); ui.events = [];
     refreshAll();
     ui.tab = 'situations'; ui.unread = 0; renderTabs(); renderSide();
     addFeed({ t: vent.time, who: 'kollega', text: 'Pasienten er klar. Følg med.' }, false);
@@ -735,7 +898,7 @@ export function mountRespirator(container, ctx) {
     vent.setSettings(setup.settings); vent.setPatient(setup.patient); vent.setDisconnected(false); vent.setLeak(0);
     gas.setParams({ petGap: 0.5, ...setup.gas });
     vent.reset(); vent.run(15); ui.lastBreathTime = vent.time; updateGasFromVent(); gas.settle();
-    ui.running = true;
+    ui.running = true; standbyBtn.classList.remove('on'); closeWindow();
     refreshAll();
     ui.tab = 'tasks'; renderTabs(); renderSide();
   }
@@ -748,15 +911,10 @@ export function mountRespirator(container, ctx) {
     toast(T.result.ok ? 'Riktig – oppgaven er løst!' : 'Se tilbakemeldingen per kriterium.', { kind: T.result.ok ? 'ok' : 'warn' });
   }
 
-  // ======================= Modaler =======================
+  // ======================= Modal (forutsigelse) =======================
   let modalEl = null;
   function openModal(content) { closeModal(); modalEl = h('div', { class: 'hc-modal-backdrop' }, h('div', { class: 'hc-modal', role: 'dialog' }, ...content)); hc.append(modalEl); }
   function closeModal() { modalEl?.remove(); modalEl = null; }
-  function openModeModal() {
-    const opts = [MODES.APVCMV, MODES.PCV, MODES.SPONT, MODES.SCMV].map((m) => h('button', { type: 'button', class: `choice ${vent.settings.mode === m.id ? 'selected' : ''}`, onClick: () => { closeModal(); applySetting('mode', m.id); openWindow('controls', true); } }, h('div', { class: 'mode-option' }, h('b', {}, m.label), h('small', {}, m.description))));
-    const others = ['SIMV+', 'PSIMV+', 'DuoPAP', 'APRV', 'ASV', 'NIV', 'NIV-ST', 'HiFlowO2'].map((m) => h('button', { type: 'button', class: 'choice disabled', disabled: true }, h('div', { class: 'mode-option' }, h('b', {}, m), h('small', {}, 'Finnes på C6, ikke i simulatoren ennå'))));
-    openModal([h('h3', {}, 'Modus'), h('div', { class: 'choices mode-list' }, ...opts, ...others), h('div', { class: 'row', style: { marginTop: '12px' } }, button('Avbryt', { onClick: closeModal }))]);
-  }
   function showPrediction(q, onApply, onCancel) {
     const mm = MEASURES[q.measure];
     const choices = h('div', { class: 'choices' });
@@ -810,7 +968,7 @@ export function mountRespirator(container, ctx) {
     return { wheeze: Math.max(wheezeMech * 0.6, (snd.wheeze ?? 0) * f), secretions: (snd.secretions ?? 0) * f };
   }
 
-  let lastClockSec = -1;
+  let lastClockSec = -1, lastWallSec = -1;
   function frame(now) {
     if (ui.lastNow === null) ui.lastNow = now;
     const elapsed = Math.min(0.2, (now - ui.lastNow) / 1000);
@@ -824,18 +982,18 @@ export function mountRespirator(container, ctx) {
       audio.setBreath(vent.disconnected ? 0 : vent.lung.state.flow, true);
     } else audio.setBreath(0, false);
     for (const s of Object.values(sc)) s.draw();
-    if (ui.layout === 'loops') { pvLoop.setData(loopCur.pv, loopPrev.pv); pvLoop.draw(); fvLoop.setData(loopCur.fv, loopPrev.fv); fvLoop.draw(); }
-    if (ui.layout === 'panels') drawDynamicLung(lastSample);
+    if (ui.layout === 2) { pvLoop.setData(loopCur.pv, loopPrev.pv); pvLoop.draw(); fvLoop.setData(loopCur.fv, loopPrev.fv); fvLoop.draw(); }
+    if (ui.layout >= 3) drawDynamicLung(lastSample);
     if (ui.autoHoldUntil !== null && vent.time >= ui.autoHoldUntil) { vent.releaseHold(); ui.autoHoldUntil = null; }
-    const sec = Math.floor(vent.time);
-    if (sec !== lastClockSec) {
-      lastClockSec = sec;
+    const sec = Math.floor(vent.time), wallSec = Math.floor(now / 1000);
+    if (sec !== lastClockSec || (!ui.running && wallSec !== lastWallSec)) {
+      lastClockSec = sec; lastWallSec = wallSec;
       renderClock();
       if (vent.holdActive) toolsRefresh?.();
       if (vent.time - ui.lastBreathTime > 12 || vent.disconnected) updateGasFromVent();
       if (ui.o2Enrich && vent.time >= ui.o2Enrich.until) { applySetting('fio2', ui.o2Enrich.prev, { silent: true }); ui.o2Enrich = null; o2Btn.classList.remove('on'); logEvent('O2-anrikning ferdig'); }
       evaluateAlarms(); updateMMP(vent.measurements); renderMsgBar(); renderMonitorPanel();
-      if (ui.layout === 'panels') { drawVentStatus(); drawDynamicLungText(); }
+      if (ui.layout >= 3) { drawVentStatus(); drawDynamicLungText(); }
       audio.setPulse(gas.state.spo2, currentVitals().hr);
       audio.setPatientSounds(patientSoundLevels());
       if (ui.situation && !ui.situation.summary) {
@@ -863,7 +1021,7 @@ export function mountRespirator(container, ctx) {
     sc.vol.setRange(0, vHi); pvLoop.setRanges(null, [0, vHi]); fvLoop.setRanges([0, vHi], null);
   }
   function refreshAll() {
-    updateMarkers(); renderTop(); renderSettingsBar(); updateMMP(vent.measurements); renderClock(); renderMonitorPanel();
+    updateMarkers(); renderTop(); updateMMP(vent.measurements); renderClock(); renderMonitorPanel();
     for (const s of Object.values(sc)) s.clear();
   }
 
