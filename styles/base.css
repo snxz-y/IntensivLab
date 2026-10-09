@@ -53,14 +53,14 @@ button, input, select { font: inherit; color: inherit; }
   display: flex; align-items: center; gap: var(--gap); flex-wrap: wrap;
   padding: 10px 16px;
   padding-top: calc(10px + env(safe-area-inset-top, 0px));
-  background: var(--bg-elev);
+  background: var(--bg);
   border-bottom: 1px solid var(--border);
   position: sticky; top: 0; z-index: 10;
 }
 /* Dekker området under iOS-statuslinjen med samme farge som topplinjen, så ingenting blir uskarpt der. */
 .topbar::before {
   content: ''; position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top, 0px);
-  background: var(--bg-elev); z-index: 11;
+  background: var(--bg); z-index: 11;
 }
 .brand { font-weight: 750; font-size: 1.15rem; letter-spacing: 0.01em; color: var(--fg); }
 .brand:hover { text-decoration: none; }
