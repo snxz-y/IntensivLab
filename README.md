@@ -12,7 +12,7 @@ Nettbasert læringsplattform for intensivsykepleie, bygd som statisk app
 | Modul | Status |
 |---|---|
 | Respiratorsimulator (`#/respirator`) | ferdig (fase 3) |
-| Blodgasstrener (`#/blodgass`) | fase 4–5 |
+| Blodgasstrener (`#/blodgass`) | generator og tester ferdig (fase 4), UI i fase 5 |
 
 ## Respiratorsimulatoren
 

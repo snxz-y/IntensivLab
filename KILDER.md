@@ -4,7 +4,7 @@ Alle formler og referanseområder i IntensivLab skal kunne spores hit.
 Oppføringer merket **UVERIFISERT** har jeg ikke kunnet belegge med en kilde
 jeg er sikker på, og bør sjekkes mot pensum før de stoles på.
 
-Status: fase 2 (respiratormodell). Blodgass fylles ut i fase 4.
+Status: fase 4 (blodgassgenerator).
 
 ## Enheter (core/units.js)
 
@@ -37,7 +37,33 @@ Status: fase 2 (respiratormodell). Blodgass fylles ut i fase 4.
 
 ## Blodgasstrener
 
-Fylles ut i fase 4.
+### Formler (core/physiology/acidbase.js)
+
+| Nøkkel | Formel | Kilde |
+|---|---|---|
+| B1 | Henderson–Hasselbalch: pH = 6,1 + log10(HCO3 / (0,0307 · PaCO2[mmHg])); 0,0307 mmol/L/mmHg = 0,230 mmol/L/kPa ved 37 °C | Boron WF, Boulpaep EL. *Medical Physiology*, 3. utg., Elsevier 2017 |
+| B2 | Metabolsk acidose, forventet PaCO2 (mmHg) = 1,5 · HCO3 + 8 ± 2 (Winters formel) | Albert MS, Dell RB, Winters RW. *Ann Intern Med* 1967;66:312–22 |
+| B4 | Akutt resp. acidose: HCO3 +1 per 10 mmHg PaCO2; kronisk +3,5 per 10. Akutt resp. alkalose: HCO3 −2 per 10 mmHg; kronisk −4 per 10 | Berend K, de Vries APJ, Gans ROB. *N Engl J Med* 2014;371:1434–45 |
+| B5 | Anion gap = Na − (Cl + HCO3), uten K. Albuminkorrigert: AG + 2,5 · (4,0 − albumin[g/dL]) = AG + 0,25 · (40 − albumin[g/L]) | Figge J, Jabor A, Kazda A, Fencl V. *Crit Care Med* 1998;26:1807–10 |
+| B6 | Delta ratio = (AG − 12)/(24 − HCO3); < 0,4 / 0,4–0,8 / 0,8–2 / > 2 | Rastegar A. *J Am Soc Nephrol* 2007;18:2429–31 |
+| B7 | Standard base excess (Van Slyke): SBE = 0,93 · [(HCO3 − 24,4) + 14,8 · (pH − 7,4)] | Siggaard-Andersen O. *Scand J Clin Lab Invest* 1977;37 Suppl 146:15–20 |
+| B8 | P/F-ratio = PaO2/FiO2. Berlin: ≤ 300 / 200 / 100 mmHg = ≤ 40 / 26,7 / 13,3 kPa (mild/moderat/alvorlig) ved PEEP ≥ 5 | ARDS Definition Task Force. *JAMA* 2012;307:2526–33 |
+| B9 | Alveolær gassligning: PAO2 = FiO2 · (101,3 − 6,3) − PaCO2/0,8 (kPa) | West JB. *Respiratory Physiology: The Essentials* |
+| B10 | Hypoksemisk respirasjonssvikt: PaO2 < 8 kPa (60 mmHg) | Roussos C, Koutsoukou A. *Eur Respir J* 2003;22 Suppl 47:3s–14s |
+
+### Tolkningsregler (modules/blodgass/interpret.js)
+
+- Acidemi pH < 7,35, alkalemi pH > 7,45 (B1-lærebøker).
+- Ved normal pH peker siden av 7,40 mot den primære forstyrrelsen (vanlig lærebokheuristikk, f.eks. Berend 2014). Der PaCO2 og HCO3 avviker i samme syre–base-retning, godtas både den respiratoriske og den metabolske lesningen, og kasusets sykehistorie avgjør hva som regnes som «foretrukket».
+- Bånd for respiratorisk kompensasjon: ±3 mmol/L rundt akutt og kronisk forventning (eget valg, fordi regelvariantene 3,5 vs 4 per 10 mmHg gir ±1–2 mmol/L spredning). Der akutt og kronisk forventning overlapper, godtas begge svar.
+- Bånd for metabolsk kompensasjon: ±2 mmHg (B2).
+
+### Generatorens modellvalg (ikke kliniske fakta)
+
+- HCO3 beregnes fra avrundet pH og PaCO2 slik blodgassanalysatorer gjør; derfor er verdiene innbyrdes konsistente per konstruksjon.
+- Cl beregnes fra Na, HCO3 og et mål for albuminkorrigert AG (Figge invertert).
+- PaO2 settes fra et P/F-mål per lungestatus og begrenses av alveolær gassligning (PaO2 < PAO2).
+- Laktat, glukose, K og albumin i vignettene er typiske verdier for tilstanden, ikke kildebelagte.
 
 ## UVERIFISERT (sjekk mot pensum)
 
@@ -61,6 +87,12 @@ Fylles ut i fase 4.
 | Obstruktiv (KOLS/astma) | 70 | 20 / 30 | 6 cmH2O @ 22/min | Høy, særlig ekspiratorisk, resistance; τexp 2,1 s |
 | Restriktiv | 20 | 8 / 8 | ingen | Lav compliance, normal resistance |
 
-### Enheter som allerede er belagt
+### Blodgass (core/physiology/acidbase.js, references.js, modules/blodgass/)
 
-Se tabellen under «Enheter».
+| Hva | Verdi brukt | Merknad |
+|---|---|---|
+| B3: Metabolsk alkalose, forventet PaCO2 | 0,7 · HCO3 + 21 ± 2 mmHg | Flere varianter i litteraturen (0,7·HCO3 + 20 ± 5; 0,9·HCO3 + 15). Kilde for akkurat denne er usikker. |
+| B7: Van Slyke-konstanter | 24,4 og 14,8 | Analysatorer (CLSI C46) bruker 24,8 og 1,43·Hb + 7,7 med Hb 5 g/dL for ECF; forskjellen er < 0,5 mmol/L. |
+| Referanseområder | PaO2 10–13,3 kPa; laktat 0,5–2,0; Na 137–145; K 3,5–5,0; Cl 98–108; albumin 36–48 g/L; glukose 4,0–7,8 | Varierer mellom laboratorier. Sjekk mot Nasjonal brukerhåndbok i medisinsk biokjemi. |
+| Anion gap normalområde | 8–12 mmol/L (uten K) | Laboratorieavhengig; moderne ISE-analysatorer gir ofte lavere. |
+| Vignettverdier | laktat, glukose, K, albumin per scenario | Typiske verdier, ikke kildebelagt per tall. |
