@@ -37,6 +37,9 @@ Vinduene følger C6: lyse med faner til venstre, ringknapper som blir gule når 
   og Vt/IBW. I gjeldende modus virker endringer fra neste pust.
 - **Alarmer**: en kolonne per alarm med øvre grense som ring, søyle med måleverdien og nedre
   grense som ring. «Auto» setter grensene rundt gjeldende måleverdier.
+- **Monitorering**: som på C6 med fanene General, CO2, SpO2 og Pes, ✕ til venstre og verdiene i
+  kolonner med stort tall og navn/enhet ved siden av. CO2-verdiene (VDaw, Vtalv, V'alv, V'CO2) er
+  modellverdier; Pes og Pcuff vises som «---» fordi de ikke er simulert.
 - **Grafikk**: oppsett 1–4 (tre kurver, kurver + sløyfer, kurver + paneler, Paw + store paneler),
   tidsskala og frys.
 - **Standby**: gult Standby-felt og blått pasientoppsett (kjønn, høyde, IBW) med «Start ventilasjon».
