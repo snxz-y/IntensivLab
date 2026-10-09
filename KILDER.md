@@ -63,10 +63,14 @@ trykkpneumothorax, rhonchi ved sekret) er standard klinisk undersøkelseslære.
 
 ## Lyd (core/audio/ventSounds.js)
 
-Alarmmønstrene (høy prioritet: 5 pulser gjentatt; middels: 3 pulser periodisk) følger beskrivelsen i HAMILTON-C6-håndboken kap. 9, men tonehøyde og tempo er valgt (UVERIFISERT som gjengivelse av den faktiske lyden).
+Alarmtonene er stilt inn etter to lydopptak fra Hamiltons C6-simuleringsprogramvare (analysert med spektrogram):
+rene sinustoner på 205 ms, tonene ≈ 787 Hz, 1335 Hz og 1051 Hz. Høy prioritet: fem toner i to grupper (3 + 2),
+gjentatt hvert 2,4 s. Middels prioritet: tre toner, gjentatt sjeldnere. Oppbygningen svarer til IEC 60601-1-8
+(høy: 5 pulser, middels: 3 pulser) og beskrivelsen i HAMILTON-C6-håndboken kap. 9. Opptakene er ikke brukt som
+lydfiler; tonene syntetiseres. Hvilket opptak som hørte til rød og gul alarm er usikkert (se README).
 Pustelyden er lagdelt, filtrert støy styrt av flow (ren syntese); pasientlydene (ekspiratoriske pipelyder,
-sekretrasling, hoste) er også syntetiske og bare ment som gjenkjennelige signaler, ikke som gjengivelse av auskultasjonsfunn. Pulstonen følger pulsoksymeterpraksis der
-tonehøyden faller med metningen; tallene (880 Hz ved 100 %, 520 Hz ved 80 %) er valgt, ikke kildebelagt.
+sekretrasling, hoste) er også syntetiske og bare ment som gjenkjennelige signaler, ikke som gjengivelse av auskultasjonsfunn.
+Pulstonen følger pulsoksymeterpraksis der tonehøyden faller med metningen; tallene (880 Hz ved 100 %, 520 Hz ved 80 %) er valgt, ikke kildebelagt.
 
 ## Blodgasstrener
 

@@ -19,7 +19,8 @@ test('pulstone: tonehøyden faller med SpO2', () => {
 test('alarmmønstre: høy prioritet har flere pulser og kortere periode enn middels', () => {
   assert.ok(ALARM_PATTERNS.high.times.length > ALARM_PATTERNS.medium.times.length);
   assert.ok(ALARM_PATTERNS.high.period < ALARM_PATTERNS.medium.period);
-  assert.ok(ALARM_PATTERNS.high.freq > ALARM_PATTERNS.medium.freq);
+  for (const p of Object.values(ALARM_PATTERNS)) assert.equal(p.freqs.length, p.times.length);
+  assert.deepEqual(ALARM_PATTERNS.medium.freqs, ALARM_PATTERNS.high.freqs.slice(0, 3));
 });
 
 test('createVentAudio tåler miljø uten Web Audio (Node)', async () => {

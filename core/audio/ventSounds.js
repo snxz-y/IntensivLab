@@ -32,10 +32,16 @@ export function pulsePitch(spo2) {
   return 520 + 360 * x;
 }
 
-/** Alarmmønstre: pulstidspunkter (s) innen en periode. */
+/**
+ * Alarmmønstre, målt fra opptak av HAMILTON-C6-simuleringsprogramvaren (ren sinus, 205 ms per tone,
+ * tonene G5 ≈ 787 Hz, E6 ≈ 1335 Hz, C6 ≈ 1051 Hz):
+ *  - høy prioritet: fem toner i to grupper (3 + 2) med 95 ms mellomrom, gruppene 0,4 s fra hverandre, gjentatt hvert 2,4 s
+ *  - middels prioritet: tre toner med 195 ms mellomrom, gjentatt sjeldnere
+ * Dette er samme oppbygning som IEC 60601-1-8 (høy: 5 pulser, middels: 3 pulser).
+ */
 export const ALARM_PATTERNS = {
-  high: { freq: 880, pulse: 0.14, times: [0, 0.22, 0.44, 0.84, 1.06], period: 2.6 },
-  medium: { freq: 660, pulse: 0.2, times: [0, 0.3, 0.6], period: 5.0 },
+  high: { freqs: [787, 1335, 1051, 1335, 1051], pulse: 0.205, times: [0, 0.3, 0.6, 1.2, 1.5], period: 2.4 },
+  medium: { freqs: [787, 1335, 1051], pulse: 0.205, times: [0, 0.4, 0.8], period: 8.0 },
 };
 
 export function createVentAudio() {
@@ -132,14 +138,14 @@ export function createVentAudio() {
     loopNoise().connect(crackleFilter).connect(crackleGain).connect(master);
   }
 
-  function beep(freq, duration, when = 0, gain = 0.5, type = 'triangle') {
+  function beep(freq, duration, when = 0, gain = 0.5, type = 'triangle', overtone = 0.25) {
     if (!ctx) return;
     const t0 = ctx.currentTime + when;
     const osc = ctx.createOscillator(); const osc2 = ctx.createOscillator();
     const g = ctx.createGain();
     osc.type = type; osc.frequency.value = freq;
-    osc2.type = 'sine'; osc2.frequency.value = freq * 2; // overtone for «elektronisk» klang
-    const g2 = ctx.createGain(); g2.gain.value = 0.25;
+    osc2.type = 'sine'; osc2.frequency.value = freq * 2; // overtone for «elektronisk» klang (0 = ren tone)
+    const g2 = ctx.createGain(); g2.gain.value = overtone;
     g.gain.setValueAtTime(0, t0);
     g.gain.linearRampToValueAtTime(gain, t0 + 0.01);
     g.gain.setValueAtTime(gain, t0 + duration - 0.02);
@@ -165,7 +171,7 @@ export function createVentAudio() {
     clearInterval(alarmTimer); alarmTimer = null;
     if (!enabled || !opts.alarms || !alarmPriority) return;
     const p = ALARM_PATTERNS[alarmPriority];
-    const fire = () => { if (Date.now() < silencedUntil) return; for (const t of p.times) beep(p.freq, p.pulse, t, alarmPriority === 'high' ? 0.6 : 0.4); };
+    const fire = () => { if (Date.now() < silencedUntil) return; p.times.forEach((t, i) => beep(p.freqs[i], p.pulse, t, alarmPriority === 'high' ? 0.6 : 0.45, 'sine', 0)); };
     fire();
     alarmTimer = setInterval(fire, p.period * 1000);
   }

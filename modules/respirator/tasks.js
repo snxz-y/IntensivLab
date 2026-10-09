@@ -287,7 +287,7 @@ export const TASKS = [
     id: 'vt-lav', cat: 'feil',
     title: 'Alarm: Vt lav i (S)CMV+',
     profileId: 'normal',
-    vignette: 'Kvinne, 168 cm, i (S)CMV+ med Vt 450. Alarmen «Vt lav» og «Trykkbegrensning» går, og VTE ligger på 280 ml. Pmax står på 30.',
+    vignette: 'Kvinne, 168 cm, i (S)CMV+ med Vt 450. Alarmen «Lavt tidevolum» og «Trykkbegrensning» går, og VTE ligger på 280 ml. Pmax står på 30.',
     goal: 'Forstå hvorfor Vt ikke nås, og få VTE opp til innstilt Vt (±10 %) uten å overskride Pplateau 30. Sjekk alarmgrensene.',
     settings: { mode: 'APVCMV', vt: 450, rate: 15, peep: 8, timingMode: 'ie', ie: ie(1, 2), fio2: 40, pmax: 30 },
     patientOverride: { compliance: 28, resistance: 14, resistanceExp: 14, height: 168, sex: 'K' },

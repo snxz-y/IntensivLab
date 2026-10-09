@@ -35,6 +35,10 @@ Vinduene følger C6: lyse med faner til venstre, ringknapper som blir gule når 
 - **Kontroller**: fanene Grunn (I:E eller TI, Rate, P-ramp, Vt/Pcontrol/Psupport, PEEP/CPAP,
   trigger, Oksygen), Mer (apné-backup) og Pasient (kjønn og høyde gir IBW). Nederst står TI, TE
   og Vt/IBW. I gjeldende modus virker endringer fra neste pust.
+- **Alarmvisning**: som på C6 blir verdien rød (høy prioritet) eller gul (middels) i MMP-flisen,
+  grensen som er brutt farges, og flisen får en farget stolpe i høyre kant. Meldingslinjen viser
+  alarmen med høyest prioritet. Lyd: høy prioritet er fem toner (3 + 2) hvert 2,4 s, middels er tre
+  toner, begge med Hamiltons tre tonehøyder.
 - **Alarmer**: en kolonne per alarm med øvre grense som ring, søyle med måleverdien og nedre
   grense som ring. «Auto» setter grensene rundt gjeldende måleverdier.
 - **Monitorering**: som på C6 med fanene General, CO2, SpO2 og Pes, ✕ til venstre og verdiene i
@@ -67,8 +71,8 @@ Respiratoren starter alltid i standardoppsett: (S)CMV+ (adaptiv trykkregulering 
 volummål, som Hamiltons APVcmv), Vt 8 ml/kg IBW, Rate 15, PEEP 5, Oksygen 40 %, I:E 1:2,
 P-ramp 50 ms, flowtrigger 2 l/min. Plimit = Pmax − 10 begrenser levert trykk, og ved Pmax
 åpnes ekspirasjonsventilen, slik C6 gjør. Lyd (respiratorens pustelyd som følger flowen,
-alarmer i to prioriteter, pulstone, pasientlyder som pipelyder, sekretrasling og hoste)
-syntetiseres med Web Audio og virker på iPad etter første trykk på «Lyd». Fremdrift lagres
+alarmer i to prioriteter med Hamiltons tonemønster, pulstone, pasientlyder som pipelyder,
+sekretrasling og hoste) syntetiseres med Web Audio og virker på iPad etter første trykk på «Lyd». Fremdrift lagres
 lokalt i nettleseren.
 
 ## Blodgasstreneren

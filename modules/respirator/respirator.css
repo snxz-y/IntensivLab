@@ -306,3 +306,11 @@
 .mon-val { font-size: clamp(1.1rem, 1.8vw, 1.6rem); font-weight: 300; text-align: right; color: #222; font-variant-numeric: tabular-nums; }
 .mon-lbl { font-size: 0.8rem; color: #222; line-height: 1.15; }
 .mon-lbl small { display: block; font-size: 0.68rem; color: #555; }
+
+/* Alarm i MMP-flisen som på C6: rød/gul verdi, farget grenseverdi og stolpe i høyre kant */
+.hc-mmp .mmp.alarm-high::after, .hc-mmp .mmp.alarm-medium::after { content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 6px; background: var(--hc-red); }
+.hc-mmp .mmp.alarm-medium::after { background: var(--hc-yellow); }
+.mmp.alarm-high .mmp-limits, .mmp.alarm-medium .mmp-limits { color: #fff; }
+.mmp .mmp-limits .hit-high { color: var(--hc-red); }
+.mmp .mmp-limits .hit-medium { color: var(--hc-yellow); }
+.hc-msg.high, .hc-msg.medium { justify-content: center; font-size: 1.35rem; font-weight: 300; }

@@ -299,15 +299,15 @@ export function mountRespirator(container, ctx) {
   const limitValue = (key) => (key === 'pmax' ? vent.settings.pmax : ui.alarms[key]);
   function updateMMP(mRaw) {
     const m = withGas(mRaw);
-    const alarmByKey = {};
-    for (const a of ui.activeAlarms) if (a.mmp) alarmByKey[a.mmp] = a.priority === 'high' ? 'high' : (alarmByKey[a.mmp] ?? 'medium');
+    const alarmByKey = {}, limitHit = {};
+    for (const a of ui.activeAlarms) if (a.mmp) { alarmByKey[a.mmp] = a.priority === 'high' ? 'high' : (alarmByKey[a.mmp] ?? 'medium'); if (a.limit) limitHit[`${a.mmp}:${a.limit}`] = a.priority; }
     for (const [key, t] of Object.entries(mmpTiles)) {
       let cls = `mmp ${t.def.compact ? 'compact' : ''}`;
       if (alarmByKey[key]) cls += ` alarm-${alarmByKey[key]}`;
       if (key === 'pplat' && m.pplatMeasured != null) cls += ' measured';
       t.val.textContent = t.def.d === null ? (m[key] ?? '–') : fmt(m[key], t.def.d);
       t.el.className = cls;
-      if (t.def.limits) { const [hi, lo] = t.def.limits; t.lim.replaceChildren(h('span', {}, hi ? String(limitValue(hi)) : ''), h('span', {}, lo ? String(limitValue(lo)) : '')); }
+      if (t.def.limits) { const [hi, lo] = t.def.limits; t.lim.replaceChildren(h('span', { class: limitHit[`${key}:hi`] ? `hit-${limitHit[`${key}:hi`]}` : '' }, hi ? String(limitValue(hi)) : ''), h('span', { class: limitHit[`${key}:lo`] ? `hit-${limitHit[`${key}:lo`]}` : '' }, lo ? String(limitValue(lo)) : '')); }
     }
     monitorRefresh?.();
   }
@@ -320,15 +320,15 @@ export function mountRespirator(container, ctx) {
     if (!ui.running) { ui.activeAlarms = []; return list; }
     const hasBreath = m.breathType !== null;
     if (vent.disconnected || (hasBreath && m.ppeak < m.peep + 2 && s.mode !== 'SPONT')) list.push({ id: 'disc', text: 'Frakobling på pasientsiden', priority: 'high', mmp: 'ppeak' });
-    if (m.highPressure || (m.ppeak !== null && m.ppeak >= s.pmax)) list.push({ id: 'phigh', text: 'Trykk høy', priority: 'high', mmp: 'ppeak' });
-    if (hasBreath && m.expMinVol < ui.alarms.mvLow) list.push({ id: 'mvlow', text: 'ExpMinVol lav', priority: 'high', mmp: 'expMinVol' });
-    if (hasBreath && m.expMinVol > ui.alarms.mvHigh) list.push({ id: 'mvhigh', text: 'ExpMinVol høy', priority: 'high', mmp: 'expMinVol' });
+    if (m.highPressure || (m.ppeak !== null && m.ppeak >= s.pmax)) list.push({ id: 'phigh', text: 'Trykk høy', priority: 'high', mmp: 'ppeak', limit: 'hi' });
+    if (hasBreath && m.expMinVol < ui.alarms.mvLow) list.push({ id: 'mvlow', text: 'Lavt minuttvolum', priority: 'high', mmp: 'expMinVol', limit: 'lo' });
+    if (hasBreath && m.expMinVol > ui.alarms.mvHigh) list.push({ id: 'mvhigh', text: 'Høyt minuttvolum', priority: 'high', mmp: 'expMinVol', limit: 'hi' });
     if (vent.backupActive || (vent.time - ui.lastBreathTime > ui.alarms.apnea && vent.time > ui.alarms.apnea)) list.push({ id: 'apnea', text: vent.backupActive ? 'Apné-ventilasjon' : 'Apné', priority: 'high' });
-    if (gas.state.spo2 * 100 < ui.alarms.spo2Low) list.push({ id: 'spo2', text: `SpO2 lav (${fmt(gas.state.spo2 * 100, 0)} %)`, priority: 'high', mmp: 'spo2' });
-    if (hasBreath && !vent.disconnected && m.vte < ui.alarms.vtLow) list.push({ id: 'vtlow', text: 'Vt lav', priority: 'medium', mmp: 'vte' });
-    if (hasBreath && m.vte > ui.alarms.vtHigh) list.push({ id: 'vthigh', text: 'Vt høy', priority: 'medium', mmp: 'vte' });
-    if (hasBreath && m.fTotal > ui.alarms.fHigh) list.push({ id: 'fhigh', text: 'Frekvens høy', priority: 'medium', mmp: 'fTotal' });
-    if (hasBreath && ui.alarms.fLow > 0 && m.fTotal < ui.alarms.fLow) list.push({ id: 'flow', text: 'Frekvens lav', priority: 'medium', mmp: 'fTotal' });
+    if (gas.state.spo2 * 100 < ui.alarms.spo2Low) list.push({ id: 'spo2', text: `Lav SpO2 (${fmt(gas.state.spo2 * 100, 0)} %)`, priority: 'high', mmp: 'spo2', limit: 'lo' });
+    if (hasBreath && !vent.disconnected && m.vte < ui.alarms.vtLow) list.push({ id: 'vtlow', text: 'Lavt tidevolum', priority: 'medium', mmp: 'vte', limit: 'lo' });
+    if (hasBreath && m.vte > ui.alarms.vtHigh) list.push({ id: 'vthigh', text: 'Høyt tidevolum', priority: 'medium', mmp: 'vte', limit: 'hi' });
+    if (hasBreath && m.fTotal > ui.alarms.fHigh) list.push({ id: 'fhigh', text: 'Høy frekvens', priority: 'medium', mmp: 'fTotal', limit: 'hi' });
+    if (hasBreath && ui.alarms.fLow > 0 && m.fTotal < ui.alarms.fLow) list.push({ id: 'flow', text: 'Lav frekvens', priority: 'medium', mmp: 'fTotal', limit: 'lo' });
     if (m.pressureLimited) list.push({ id: 'plimit', text: 'Trykkbegrensning', priority: 'medium', mmp: 'ppeak' });
     const prev = new Set(ui.activeAlarms.map((a) => a.id)), now = new Set(list.map((a) => a.id));
     for (const a of list) if (!prev.has(a.id)) logEvent(`Alarm: ${a.text}`, a.priority);
@@ -342,7 +342,9 @@ export function mountRespirator(container, ctx) {
     audio.setAlarm(list.length ? (high ? 'high' : 'medium') : null);
     msgBar.className = `hc-msg ${list.length ? (high ? 'high' : 'medium') : ''}`;
     clear(msgBar);
-    const text = list.length ? list.map((a) => a.text).join(' · ') : (ui.o2Enrich ? `O2-anrikning: ${fmt(Math.max(0, ui.o2Enrich.until - vent.time), 0)} s igjen` : (!ui.running ? 'Standby – ingen ventilasjon leveres' : ''));
+    // C6 viser én melding om gangen: den med høyest prioritet (nyeste først)
+    const top = list.find((a) => a.priority === 'high') ?? list[0];
+    const text = list.length ? `${top.text}${list.length > 1 ? `  (+${list.length - 1})` : ''}` : (ui.o2Enrich ? `O2-anrikning: ${fmt(Math.max(0, ui.o2Enrich.until - vent.time), 0)} s igjen` : (!ui.running ? 'Standby – ingen ventilasjon leveres' : ''));
     msgBar.append(h('span', { class: 'hc-msg-text' }, text));
     if (audio.enabled && audio.silenced) msgBar.append(h('span', { class: 'hc-silenced' }, `🔕 ${clock(audio.silencedFor)}`));
     alarmsBtn.classList.toggle('alarming', high);

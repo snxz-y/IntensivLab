@@ -112,7 +112,7 @@ export const SITUATIONS = [
       harmful: {},
       neutral: { sug: 'Sugekateteret kommer ikke forbi bittet.', koble: 'Kretsen var tilkoblet.', tube: 'Tuben lå riktig.', bronkodilatator: 'Ingen bronkospasme; biting på tuben er en mekanisk obstruksjon.', rekruttering: 'Ikke aktuelt; problemet sitter i tuben.', lege: 'Legen finner ikke pneumothorax.', reposisjon: 'Ingen effekt.' },
       resolve: ({ m, fixed }) => fixed && m.ppeak < 35,
-      explanation: 'Når pasienten biter på tuben, stiger resistance kraftig: Ppeak går i taket mens Pplat (målt ved hold) er normal. I (S)CMV+ øker respiratoren ΔPinsp til Plimit (Pmax − 10) uten å nå Vt, så alarmene «Trykkbegrensning» og «Vt lav» kommer; i PCV+ faller Vt direkte. Løsning: bittblokk, eventuelt sedasjonsbolus. Å heve Pmax-grensen løser ingenting.',
+      explanation: 'Når pasienten biter på tuben, stiger resistance kraftig: Ppeak går i taket mens Pplat (målt ved hold) er normal. I (S)CMV+ øker respiratoren ΔPinsp til Plimit (Pmax − 10) uten å nå Vt, så alarmene «Trykkbegrensning» og «Lavt tidevolum» kommer; i PCV+ faller Vt direkte. Løsning: bittblokk, eventuelt sedasjonsbolus. Å heve Pmax-grensen løser ingenting.',
     }],
   },
   {
@@ -211,7 +211,7 @@ export const SITUATIONS = [
       harmful: {},
       neutral: { sug: 'Lite sekret.', bittblokk: 'Hun biter ikke.', sedasjon: 'Ingen effekt på lekkasjen.', koble: 'Kretsen var tilkoblet.', tube: 'Tuben lå riktig; luften lekker rundt den.', bronkodilatator: 'Ingen effekt.', rekruttering: 'Volumet lekker ut rundt cuffen; manøveren hjelper ikke.', lege: 'Legen ber deg sjekke cuffen først.', reposisjon: 'Ingen effekt.', vaeske: 'Ikke aktuelt.', sedasjonNed: 'Ikke aktuelt.', smertelindring: 'Ikke aktuelt.', juster: 'Å øke Vt kompenserer bare delvis og øker trykket i luftveien. Lekkasjen må tettes.' },
       resolve: ({ m, fixed }) => fixed && m.vte > 350,
-      explanation: 'Lekkasje rundt cuffen gir VTE < VTI og alarmen «Vt lav». Lyd fra munnen og lavt cuff-trykk er nøkkelfunn. Løsning: fyll cuffen til 20–30 cmH2O; ved vedvarende lekkasje kan tuben være feilplassert eller cuffen ødelagt.',
+      explanation: 'Lekkasje rundt cuffen gir VTE < VTI og alarmen «Lavt tidevolum». Lyd fra munnen og lavt cuff-trykk er nøkkelfunn. Løsning: fyll cuffen til 20–30 cmH2O; ved vedvarende lekkasje kan tuben være feilplassert eller cuffen ødelagt.',
     }],
   },
   {
