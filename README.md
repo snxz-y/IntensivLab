@@ -44,6 +44,11 @@ Vinduene følger C6: lyse med faner til venstre, ringknapper som blir gule når 
 - **Monitorering**: som på C6 med fanene General, CO2, SpO2 og Pes, ✕ til venstre og verdiene i
   kolonner med stort tall og navn/enhet ved siden av. CO2-verdiene (VDaw, Vtalv, V'alv, V'CO2) er
   modellverdier; Pes og Pcuff vises som «---» fordi de ikke er simulert.
+- **Hendelser**: logg som på C6 med tid, kategori (!!! høy alarm, !! middels, Control, Mode, Alarm,
+  Hold) og tekst. Røde og gule rader for alarmer.
+- **Verktøy**: fanene P/V Tool, Hold, Utilities og Configuration som på C6. Hold har knappene
+  Inspirasjonshold og Ekspirasjonshold (hold inne). Utilities har manuell pust, O2-anrikning og
+  simuleringshastighet. P/V Tool og Configuration er ikke simulert.
 - **Grafikk**: oppsett 1–4 (tre kurver, kurver + sløyfer, kurver + paneler, Paw + store paneler),
   tidsskala og frys.
 - **Standby**: gult Standby-felt og blått pasientoppsett (kjønn, høyde, IBW) med «Start ventilasjon».
