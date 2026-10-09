@@ -45,6 +45,35 @@ export function createVentAudio() {
   let pulseTimer = null;
   let pulseSpo2 = null;
   let pulseRate = 80;
+  let curGain = 0;      // egen utjevning: ingen automasjonshendelser (Safari rydder ikke køen)
+  let curFreq = 500;
+  let unlockEl = null;  // stille <audio> som setter iOS i avspillingsmodus
+  let resumeHooked = false;
+
+  /** Liten stille WAV (0,2 s) som data-URL, bygget her så ingen konstant kan være feil. */
+  function silentWav() {
+    const rate = 8000, n = 1600;
+    const buf = new ArrayBuffer(44 + n);
+    const v = new DataView(buf);
+    const str = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+    str(0, 'RIFF'); v.setUint32(4, 36 + n, true); str(8, 'WAVE'); str(12, 'fmt ');
+    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, rate, true); v.setUint32(28, rate, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true);
+    str(36, 'data'); v.setUint32(40, n, true);
+    for (let i = 0; i < n; i++) v.setUint8(44 + i, 128);
+    let bin = ''; const bytes = new Uint8Array(buf);
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return 'data:audio/wav;base64,' + btoa(bin);
+  }
+
+  function hookResume() {
+    if (resumeHooked || typeof document === 'undefined') return;
+    resumeHooked = true;
+    const tryResume = () => { if (enabled && ctx && ctx.state !== 'running') ctx.resume().catch(() => {}); };
+    document.addEventListener('visibilitychange', tryResume);
+    document.addEventListener('touchend', tryResume, { passive: true });
+    document.addEventListener('click', tryResume);
+  }
 
   function ensure() {
     if (ctx) return;
@@ -53,6 +82,7 @@ export function createVentAudio() {
     ctx = new AC();
     master = ctx.createGain();
     master.gain.value = opts.volume;
+    ctx.onstatechange = () => { if (enabled && ctx.state === 'interrupted') ctx.resume().catch(() => {}); };
     master.connect(ctx.destination);
     // pustelyd: filtrert støy
     const len = ctx.sampleRate * 2;
@@ -115,7 +145,12 @@ export function createVentAudio() {
     async enable() {
       ensure();
       if (!ctx) return false;
-      if (ctx.state === 'suspended') await ctx.resume();
+      try {
+        if (!unlockEl && typeof Audio !== 'undefined') { unlockEl = new Audio(silentWav()); unlockEl.loop = true; unlockEl.volume = 0.01; }
+        await unlockEl?.play?.();
+      } catch { /* ikke kritisk */ }
+      if (ctx.state !== 'running') await ctx.resume();
+      hookResume();
       enabled = true;
       scheduleAlarm();
       schedulePulse();
@@ -125,22 +160,25 @@ export function createVentAudio() {
       enabled = false;
       clearInterval(alarmTimer); alarmTimer = null;
       clearInterval(pulseTimer); pulseTimer = null;
-      if (noiseGain && ctx) noiseGain.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
+      if (noiseGain) { noiseGain.gain.value = 0; curGain = 0; }
+      unlockEl?.pause?.();
       ctx?.suspend?.();
     },
     setOptions(partial) {
       Object.assign(opts, partial);
-      if (master) master.gain.setTargetAtTime(opts.volume, ctx.currentTime, 0.05);
-      if (!opts.breath && noiseGain) noiseGain.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
+      if (master) master.gain.value = opts.volume;
+      if (!opts.breath && noiseGain) { noiseGain.gain.value = 0; curGain = 0; }
       scheduleAlarm();
       schedulePulse();
     },
     /** Oppdater pustelyden fra gjeldende flow (L/s). Kall hver frame. */
     setBreath(flowLps) {
       if (!enabled || !ctx || !opts.breath) return;
-      const t = ctx.currentTime;
-      noiseGain.gain.setTargetAtTime(breathGain(flowLps) * 0.35, t, 0.04);
-      noiseFilter.frequency.setTargetAtTime(breathFilterHz(flowLps), t, 0.08);
+      // direkte verdisetting med egen utjevning; ingen automasjonshendelser
+      curGain += (breathGain(flowLps) * 0.35 - curGain) * 0.25;
+      curFreq += (breathFilterHz(flowLps) - curFreq) * 0.15;
+      noiseGain.gain.value = curGain;
+      noiseFilter.frequency.value = curFreq;
     },
     /** 'high' | 'medium' | null */
     setAlarm(priority) {
