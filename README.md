@@ -64,7 +64,9 @@ ikke når du justerer den:
   observasjoner, beskjeder fra kollega, monitor og respirator i en meldingsfeed, og valg på
   løpende bånd: først to runder undersøkelser (1 av 5, f.eks. lytt, se på tube, sjekk krets,
   blodgass, inspiratorisk hold), så tiltak (1 av 5) med noen sekunders pause mellom valgene
-  så du rekker å observere. «Juster respiratoren» er alltid ett av tiltakene; velger du det
+  så du rekker å observere. Alarmerer respiratoren, kommer første valg etter 2 s; avslører en
+  undersøkelse årsaken, går du rett til tiltak etter 3 s. Etter tiltaket viser panelet hva som
+  gjenstår (verdiene må være innenfor målet i 10 s). «Juster respiratoren» er alltid ett av tiltakene; velger du det
   der det er riktig, får du ingen flere alternativer og må gjøre justeringen selv på
   skjermen. Riktig tiltak løser casen når målingene har holdt seg normale i 15 s.
 - **Oppgaver**: 24 oppgaver i seks kategorier (lungebeskyttende ventilasjon, feilsøking og

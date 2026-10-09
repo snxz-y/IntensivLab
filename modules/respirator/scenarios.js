@@ -307,7 +307,7 @@ export const SITUATIONS = [
 
 export function getSituation(id) { return SITUATIONS.find((s) => s.id === id) ?? null; }
 
-const RESOLVE_HOLD = 15; // s sammenhengende oppfylt løsningskriterium
+const RESOLVE_HOLD = 10; // s sammenhengende oppfylt løsningskriterium
 const VITALS_BASE = { hr: 78, sys: 122, dia: 68, temp: 37.1 };
 
 /** Vitale tegn (puls, blodtrykk) fra baseline, hendelsens effekt og hypoksi. Ren funksjon. */
@@ -335,8 +335,10 @@ export function createSituation(def, { rng = Math.random, hooks } = {}) {
   };
   const vitalsBase = { ...VITALS_BASE, ...(def.vitalsBase ?? {}) };
   const decision = { pending: null, availableAt: Infinity, examsDone: 0, tried: new Set(), done: false };
-  const DECISION_GAP = 5;   // s pause mellom valg så brukeren rekker å observere
-  const FIRST_DECISION = 10; // s etter hendelsen før første valg
+  const DECISION_GAP = 4;   // s pause mellom valg så brukeren rekker å observere
+  const CLUE_GAP = 3;       // s fra en avslørende undersøkelse til tiltaksvalget
+  const FIRST_DECISION = 6; // s etter hendelsen før første valg (kortere hvis respiratoren alarmerer)
+  const ALARM_LEAD = 2;     // s fra første alarm/monitorvarsel til første valg
 
   function pickN(arr, n) { return shuffle(rng, arr).slice(0, n); }
   function buildDecision() {
@@ -415,6 +417,8 @@ export function createSituation(def, { rng = Math.random, hooks } = {}) {
 
       if (st.status === 'active' && !decision.done && !decision.pending) {
         if (decision.availableAt === Infinity) decision.availableAt = st.tFired + FIRST_DECISION;
+        // har monitor eller respirator allerede varslet, er det noe å reagere på: ikke la brukeren vente
+        if (decision.examsDone === 0 && (st.flags.disc || st.flags.ppeak || st.flags.plimit || st.flags.spo2 || st.flags.autopeep)) decision.availableAt = Math.min(decision.availableAt, t + ALARM_LEAD);
         if (t >= decision.availableAt) decision.pending = buildDecision();
       }
       if (st.status === 'active') {
@@ -454,8 +458,14 @@ export function createSituation(def, { rng = Math.random, hooks } = {}) {
         if (res.kind === 'riktig' && (!variant.fixes[id]?.partial || variant.fixes[id]?.recover >= 0)) decision.done = Object.keys(variant.fixes).length <= 1 || res.kind === 'riktig';
       }
       decision.availableAt = t + DECISION_GAP;
+      // fant undersøkelsen årsaken (casen har en egen ledetråd for den), går vi rett til tiltak etter en kort pause
+      if (kind === 'undersok' && variant.clues[id]) { decision.examsDone = 2; decision.availableAt = t + CLUE_GAP; }
       return res;
     },
+    /** Sekunder løsningskriteriet har vært oppfylt sammenhengende (null = ikke oppfylt nå), og kravet. */
+    stableFor(t) { return st.resolveSince === null ? null : t - st.resolveSince; },
+    get resolveHold() { return RESOLVE_HOLD; },
+    get decisionDone() { return decision.done; },
     /** Hopp over videre undersøkelser og gå til tiltak. */
     skipToActions(t) { decision.examsDone = 2; decision.pending = null; decision.availableAt = t + 1; },
     /** Hent nye meldinger siden sist. */

@@ -141,19 +141,24 @@ test('beslutningsflyt: undersøkelser, så tiltak 1 av 5, riktig tiltak avslutte
   const { vent, sit, run } = rig(SITUATIONS.find((s) => s.id === 'frakobling'));
   vent.run(30); sit.start(vent.time); run(5);
   assert.equal(sit.decision, null);
-  run(45);
+  for (let i = 0; i < 60 && !sit.decision; i++) run(1);
   assert.ok(sit.decision && sit.decision.kind === 'undersok', 'første valg er undersøkelse');
+  assert.ok(vent.time - sit.state.tFired <= 8, 'frakoblingsalarmen gir første valg raskt');
   assert.equal(sit.decision.options.length, 5);
-  const r1 = sit.choose('krets', vent.time);
-  assert.equal(r1.kind, 'ledetrad');
+  const r0 = sit.choose('blodgass', vent.time);
+  assert.equal(r0.kind, 'ledetrad');
   assert.equal(sit.decision, null);
   run(3);
   assert.equal(sit.decision, null, 'pause mellom valg');
-  run(4);
-  assert.ok(sit.decision && sit.decision.kind === 'undersok');
-  sit.skipToActions(vent.time);
-  run(3);
-  assert.ok(sit.decision && sit.decision.kind === 'tiltak', 'tiltaksvalg');
+  run(2);
+  assert.ok(sit.decision && sit.decision.kind === 'undersok', 'blodgass avslørte ikke årsaken: ny undersøkelsesrunde');
+  assert.ok(sit.decision.skippable, 'kan hoppe rett til tiltak etter første undersøkelse');
+  const r1 = sit.choose('krets', vent.time);
+  assert.equal(r1.kind, 'ledetrad');
+  run(2);
+  assert.equal(sit.decision, null, 'kort pause etter avslørende undersøkelse');
+  run(2);
+  assert.ok(sit.decision && sit.decision.kind === 'tiltak', 'avslørende undersøkelse (kretsen er frakoblet) går rett til tiltak');
   assert.ok(sit.decision.options.some((o) => o.id === 'koble'), 'riktig tiltak er med');
   assert.ok(sit.decision.options.some((o) => o.id === 'juster'), '«Juster respiratoren» er med');
   const wrong = sit.decision.options.find((o) => o.id !== 'koble' && o.id !== 'juster');
@@ -164,7 +169,10 @@ test('beslutningsflyt: undersøkelser, så tiltak 1 av 5, riktig tiltak avslutte
   sit.choose('koble', vent.time);
   run(7);
   assert.equal(sit.decision, null, 'ingen flere valg etter riktig tiltak');
+  assert.ok(sit.decisionDone);
   assert.ok(!vent.disconnected);
+  run(12);
+  assert.equal(sit.state.status, 'resolved', 'løst etter at kriteriet har holdt i resolveHold sekunder');
 });
 
 test('cuff-lekkasje: VTE faller under VTI, cuff løser', () => {

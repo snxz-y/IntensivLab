@@ -856,7 +856,16 @@ export function mountRespirator(container, ctx) {
         d.skippable ? h('div', { class: 'row', style: { marginTop: '8px' } }, button('Gå rett til tiltak', { small: true, onClick: () => { S.sit.skipToActions(vent.time); renderDecision(); } })) : null));
     } else {
       const wait = S.sit.nextDecisionIn(vent.time);
-      if (S.sit.state.status === 'active' && wait > 0) S.decisionEl.append(h('div', { class: 'decision', style: { borderColor: 'var(--border)' } }, h('span', { class: 'wait' }, `Observer pasienten og respiratoren … neste valg om ${fmt(wait, 0)} s`)));
+      const st = S.sit.state;
+      if (st.status === 'active' && wait > 0) S.decisionEl.append(h('div', { class: 'decision', style: { borderColor: 'var(--border)' } }, h('span', { class: 'wait' }, `Observer pasienten og respiratoren … neste valg om ${fmt(wait, 0)} s`)));
+      else if (st.status === 'active' && S.sit.decisionDone) {
+        // tiltaket er gjort (eller respiratoren skal justeres): vis hva vi venter på, så ventetiden ikke blir «stum»
+        const stable = S.sit.stableFor(vent.time);
+        const txt = stable === null
+          ? (st.fixed ? 'Tiltaket er utført. Følg med på at verdiene normaliserer seg …' : 'Juster respiratoren til verdiene er innenfor målet …')
+          : `Verdiene er innenfor målet. Stabil i ${fmt(stable, 0)} av ${S.sit.resolveHold} s …`;
+        S.decisionEl.append(h('div', { class: 'decision', style: { borderColor: stable === null ? 'var(--border)' : 'var(--ok)' } }, h('span', { class: 'wait' }, txt)));
+      }
     }
   }
   function chooseOption(id) {
