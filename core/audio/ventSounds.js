@@ -153,6 +153,14 @@ export function createVentAudio() {
       silencedUntil = Date.now() + seconds * 1000;
     },
     get silenced() { return Date.now() < silencedUntil; },
+    get silencedFor() { return Math.max(0, (silencedUntil - Date.now()) / 1000); },
+    unsilence() { silencedUntil = 0; },
+    /** Kort to-tone varsel (ny melding i en situasjon). */
+    notify() {
+      if (!enabled || !ctx) return;
+      beep(740, 0.08, 0, 0.3);
+      beep(988, 0.1, 0.1, 0.3);
+    },
     /** spo2 0–1 eller null for å slå av. */
     setPulse(spo2, rate = 80) {
       const was = pulseSpo2 === null;

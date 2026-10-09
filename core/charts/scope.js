@@ -12,6 +12,7 @@ export function createScope(wrap, { label = '', unit = '', color = '#fff', sweep
   const GAP = Math.round(bins * 0.03);
   const PAD = { l: 34, r: 6, t: 4, b: 4 };
   let runMin = Infinity, runMax = -Infinity; // for autoskalering
+  let markers = []; // [{ value, color, dash }]
 
   function push(t, v) {
     const idx = Math.floor(((t % sweepSeconds) / sweepSeconds) * bins) % bins;
@@ -36,6 +37,14 @@ export function createScope(wrap, { label = '', unit = '', color = '#fff', sweep
     const tk = ticks(min, max, 3);
     drawGrid(ctx, area, y, tk, { zeroColor: zeroLine ? 'rgba(255,255,255,0.28)' : 'rgba(255,255,255,0.08)' });
 
+    for (const mk of markers) {
+      if (mk.value < min || mk.value > max) continue;
+      const py = Math.round(y(mk.value)) + 0.5;
+      ctx.save();
+      ctx.strokeStyle = mk.color; ctx.lineWidth = 1; ctx.setLineDash(mk.dash ?? [6, 4]);
+      ctx.beginPath(); ctx.moveTo(area.x, py); ctx.lineTo(area.x + area.w, py); ctx.stroke();
+      ctx.restore();
+    }
     ctx.save();
     ctx.beginPath();
     ctx.rect(area.x, area.y, area.w, area.h);
@@ -83,6 +92,8 @@ export function createScope(wrap, { label = '', unit = '', color = '#fff', sweep
     push,
     draw,
     setRange(lo, hi) { min = lo; max = hi; },
+    setMarkers(list) { markers = list; },
+    setSweep(seconds) { sweepSeconds = seconds; values.fill(NaN); lastIdx = -1; },
     getRange: () => [min, max],
     /** Hent og nullstill løpende min/maks siden sist (til autoskalering). */
     takeExtremes() { const r = [runMin, runMax]; runMin = Infinity; runMax = -Infinity; return r; },

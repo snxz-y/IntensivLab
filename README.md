@@ -16,25 +16,30 @@ Nettbasert læringsplattform for intensivsykepleie, bygd som statisk app
 
 ## Respiratorsimulatoren
 
-Skjermen er lagt opp som en Hamilton C6: modusknapp øverst til venstre,
-hovedmonitoreringsparametre (MMP) i kolonnen til venstre, kurver og sløyfer i midten,
-vinduer (Monitorering, Kontroller, Pasient, Verktøy, Oppgaver) via knappene til høyre,
-og innstillingene som knapper nederst. Trykk på en innstilling for å endre den.
+Skjermen til venstre er lagt opp etter HAMILTON-C6s hovedskjerm (brukerhåndbok kap. 2.2.2):
+modus øverst til venstre, fargekodet meldingslinje med Audio pause, MMP-kolonne til venstre
+med alarmgrenser, kurver og sløyfer i midten, vindusknappene Alarmer, Kontroller,
+Monitorering, Grafikk, Verktøy, Hendelser og System til høyre, hurtigknapper (manuell pust,
+O2-anrikning, frys, lyd) og hovedkontrollene for aktiv modus nederst. Trykk på en kontroll
+eller en MMP for å endre den.
 
-- Modi: (S)CMV (volumkontroll), PCV+ (trykkontroll), SPONT (trykkstøtte med backup).
-- Verktøy: inspiratorisk og ekspiratorisk hold (hold inne knappen), hastighet, nullstilling.
-- Oppgaver: før hver endring må du forutsi hva som skjer med en måleverdi. Fasit
-  hentes ved å simulere endringen til steady state i en kopi av respiratoren.
-- Situasjoner: «falske pasienter» der noe skjer underveis (snuing med desaturasjon,
-  biting på tuben, sekret, frakobling, pneumothorax, bronkospasme, asynkroni). Du
-  undersøker (lytt, se, sjekk krets) og setter inn tiltak. Riktig tiltak løser
-  situasjonen; feil tiltak logges og forklares.
-- SpO2 og PetCO2 kommer fra en forenklet gassutvekslingsmodell (shuntligning,
-  Severinghaus' dissosiasjonskurve, alveolær ventilasjonsligning). Shunt og
-  rekrutterbarhet kan justeres under «Pasient».
-- Lyd («Lyd»-knappen): pustelyd som følger flowkurven, alarmtoner i to prioriteter
-  med «Demp 2 min», og valgfri pulstone som følger SpO2. Alt syntetiseres med Web Audio.
-- Fremdrift (løste oppgaver, forutsigelser, situasjoner) lagres lokalt i nettleseren.
+Sidepanelet til høyre (under på smale skjermer) ligger utenfor respiratoren og forsvinner
+ikke når du justerer den:
+
+- **Pasientmonitor** øverst: SpO2, puls, blodtrykk, RF og temperatur.
+- **Pasient**: profil (normal, ARDS, obstruktiv, restriktiv), mekanikk, egenpust,
+  gassutveksling (shunt, rekrutterbarhet), høyde og kjønn.
+- **Situasjoner**: falske pasienter der noe skjer underveis. Du får observasjoner,
+  beskjeder fra kollega, monitor og respirator i en meldingsfeed (og som varsler), undersøker
+  (lytt, se, sjekk krets) og setter inn tiltak. Riktig tiltak løser situasjonen; feil tiltak
+  logges og forklares.
+- **Oppgaver**: før hver endring må du forutsi hva som skjer. Fasit simuleres i en kopi av
+  respiratoren.
+
+Respiratoren starter alltid i standardoppsett: (S)CMV, Vt 8 ml/kg IBW, Rate 15, PEEP 5,
+Oksygen 40 %. Plimit = Pmax − 10 begrenser levert trykk, og ved Pmax åpnes
+ekspirasjonsventilen, slik C6 gjør. Lyd (pustelyd, alarmer i to prioriteter, pulstone)
+syntetiseres med Web Audio. Fremdrift lagres lokalt i nettleseren.
 
 ## Blodgasstreneren
 

@@ -60,8 +60,7 @@ trykkpneumothorax, rhonchi ved sekret) er standard klinisk undersøkelseslære.
 
 ## Lyd (core/audio/ventSounds.js)
 
-Alarmmønstrene (høy prioritet: 3 + 2 pulser i 880 Hz hvert 2,6 s; middels: 3 pulser i 660 Hz hvert 5 s)
-er inspirert av IEC 60601-1-8, men er UVERIFISERT som gjengivelse av Hamiltons faktiske alarmlyder.
+Alarmmønstrene (høy prioritet: 5 pulser gjentatt; middels: 3 pulser periodisk) følger beskrivelsen i HAMILTON-C6-håndboken kap. 9, men tonehøyde og tempo er valgt (UVERIFISERT som gjengivelse av den faktiske lyden).
 Pustelyden er filtrert støy styrt av flow (ren syntese). Pulstonen følger pulsoksymeterpraksis der
 tonehøyden faller med metningen; tallene (880 Hz ved 100 %, 520 Hz ved 80 %) er valgt, ikke kildebelagt.
 
@@ -101,12 +100,27 @@ tonehøyden faller med metningen; tallene (880 Hz ved 100 %, 520 Hz ved 80 %) er
 
 | Hva | Verdi brukt | Merknad |
 |---|---|---|
-| K4: IBW-formel | menn 0,9079·høyde − 88,022; kvinner 0,9049·høyde − 92,006 | Jeg mener dette står i Hamilton-C6/G5-brukerhåndbok (avsnitt «IBW»). Avviker < 1,5 kg fra ARDSNet (K3). |
-| Standardinnstillinger voksen | Vt 8 ml/kg IBW (avrundet til 10 ml), f 15, PEEP 5, O2 40 %, I:E 1:2, Pcontrol 15, Psupport 10, Pramp 50 ms, ETS 25 %, flowtrigger 2 L/min, TIP 0 %, TI max 2,0 s, apnétid 20 s, backup f 12 / Pcontrol 15 | Ment å ligne Hamiltons voksenstandard. |
-| TIP (pause) | % av TI | Usikker på om Hamilton regner % av TI eller av syklustid. |
+| K4: IBW-formel | menn 0,9079·høyde − 88,022; kvinner 0,9049·høyde − 92,006 | Brukerhåndboken bekrefter at IBW regnes fra høyde og kjønn, men formelen fant jeg ikke i teksten. Avviker < 1,5 kg fra ARDSNet (K3). |
+| Standardinnstillinger voksen | f 15, PEEP 5, O2 40 %, I:E 1:2, Pcontrol 15, Psupport 10, Pramp 50 ms, flowtrigger 2 L/min, apnétid 20 s, backup f 12 / Pcontrol 15 | Ment å ligne Hamiltons voksenstandard; ikke bekreftet i håndboken. Bekreftet: Vt/IBW 8 ml/kg, ETS 25 %, TI max 1,5 s, trykktrigger −2 cmH2O (se under). |
 | Maks holdvarighet | 10 s | Hamilton avslutter insp./eksp. hold automatisk; usikker på grensen. |
 | Deselererende flow | lineært til 50 % av toppflow | Hamilton tilbyr flere mønstre; 50 %-varianten er valgt. |
 | Refraktærtid etter ekspirasjonsstart før ny trigging | 0,15 s | Eget valg for å unngå autotrigging i modellen. |
+
+### Bekreftet mot HAMILTON-C6 Operator's Manual (SW 1.2.x, Hamilton Medical, hamilton-medical.com)
+
+| Hva | Hvor i håndboken |
+|---|---|
+| Hovedskjermens elementer: modus øverst til venstre, fargekodet meldingslinje, MMP-er til venstre (Ppeak alltid med), vindusknapper Alarms/Controls/Monitoring/Graphics/Tools/Events/System, hovedkontroller for aktiv modus, Audio pause-indikator med nedtelling, hurtigknapper | Kap. 2.2.2, figur 2-6 |
+| MMP viser verdi, navn, enhet og alarmgrenser; vises gul/rød med farget stolpe ved alarm; trykk på MMP åpner Alarms > Limits | Kap. 8.2.1 |
+| Standard SMP-er: Vt/IBW, Pplateau, RCexp, TI, ΔP, Pmean, Cstat, fSpont | Kap. 8.2.2 |
+| Pause (TIP) settes i % av total syklustid | Kap. 7.2 |
+| Vt/IBW standard 8 ml/kg (5–12); Vt, Rate, TI settes fra IBW | Kap. 14.6 og 16.8 |
+| TI max standard 1,5 s (voksen); ETS standard 25 %; trykktrigger standard −2 cmH2O | Kap. 7 og 16.5 |
+| Plimit = høy trykkalarmgrense − 10 cmH2O; ved Pmax åpnes ekspirasjonsventilen (høy prioritet); Pressure limitation er middels prioritet | Kap. 5.3, 9.4, 16 |
+| Alarmprioritet: høy = rød meldingslinje + 5 pip gjentatt; middels = gul + 3 pip periodisk; lav = gul, to sekvenser | Kap. 9, tabell over alarmtyper |
+| Audio pause demper i 2 minutter | Kap. 9.1 |
+| ExpMinVol lav/høy og høyt trykk er høy prioritet; Vt lav/høy er middels | Kap. 9 / 16 |
+| Standard tidsskala for voksne kurver er 22 s (11/22/33/66 valgbart) | Kap. 8.3.2 |
 
 ### Pasientprofiler (modules/respirator/profiles.js)
 

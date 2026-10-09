@@ -55,7 +55,7 @@ export const SITUATIONS = [
     profileId: 'ards', settings: SETT.ardsPcv,
     variants: [
       {
-        id: 'derekruttering',
+        id: 'derekruttering', vitals: { hr: 20 }, cues: [{ at: 0, who: 'kollega', text: '«Sånn, da ligger hun på siden. Jeg fikser putene.»' }, { at: 30, who: 'monitor', text: 'Pulsoksymeteret piper med lavere tone enn før.' }, { at: 70, who: 'kollega', text: '«SpO2 er på vei nedover, ser du det?»' }],
         delay: [20, 40],
         effect: { shuntAdd: 0.22 },
         clues: { lytt: 'Svekket respirasjonslyd basalt på begge sider, ingen pipelyder.', se: 'Tuben står på 22 cm ved tannrekken, som før. Pasienten er rolig og sedert. Brystet beveger seg symmetrisk.', krets: 'Kretsen er tett, ingen lekkasje, filteret er tørt.' },
@@ -66,7 +66,7 @@ export const SITUATIONS = [
         explanation: 'Ved snuing av en pasient med ARDS lukker dependente alveoler seg (derekruttering), shunten øker og SpO2 faller. Det er ikke tubeproblem eller lekkasje: trykkene er uendret og brystet beveger seg symmetrisk. Løsning: åpne lungen igjen (rekrutteringsmanøver og/eller høyere PEEP), eventuelt forbigående økt FiO2 mens du finner årsaken.',
       },
       {
-        id: 'tubemigrasjon',
+        id: 'tubemigrasjon', vitals: { hr: 25 }, cues: [{ at: 0, who: 'kollega', text: '«Sånn, da ligger hun på siden. Tuben ble litt dratt i under snuingen.»' }, { at: 25, who: 'obs', text: 'Du legger merke til at høyre side av brystet hever seg mer enn venstre.' }, { at: 60, who: 'monitor', text: 'Pulsoksymeteret piper med lavere tone.' }],
         delay: [15, 35],
         effect: { compliance: 0.55, shuntAdd: 0.18 },
         clues: { lytt: 'Ingen respirasjonslyd over venstre lunge. Normal lyd på høyre side.', se: 'Tuben står på 26 cm ved tannrekken. I rapporten står det 22 cm. Høyre thorax beveger seg mer enn venstre.', krets: 'Kretsen er tett, ingen lekkasje.' },
@@ -84,14 +84,14 @@ export const SITUATIONS = [
     vignette: 'Mann, 45 år, intubert etter hodeskade, ventileres i (S)CMV. Sedasjonen er trappet ned siste time. Du er inne på rommet for å sjekke infusjonene.',
     profileId: 'normal', settings: SETT.normalScmv,
     variants: [{
-      id: 'biting', delay: [15, 30],
+      id: 'biting', vitals: { hr: 35, sys: 25 }, cues: [{ at: 0, who: 'obs', text: 'Pasienten hoster kraftig og vrir på hodet.' }, { at: 20, who: 'obs', text: 'Han har åpnet øynene og ser urolig ut. Kjevene er knepet sammen.' }, { at: 60, who: 'kollega', text: '«Skal jeg hente noe til sedasjon?»' }], delay: [15, 30],
       effect: { resistance: 6, resistanceExp: 6, shuntAdd: 0.04, effort: { amplitude: 6, rate: 24, duration: 0.8 } },
       clues: { lytt: 'Respirasjonslyder til stede, men svake, bilateralt.', se: 'Pasienten er urolig, har åpne øyne og biter hardt på tuben. Hoster.', krets: 'Kretsen er tett.' },
       fixes: { bittblokk: { text: 'Bittblokken får tuben fri. Trykket faller umiddelbart.', recover: 0 }, sedasjon: { text: 'Han slapper av etter bolusen og slipper tuben.', recover: 20 } },
       harmful: {},
       neutral: { sug: 'Sugekateteret kommer ikke forbi bittet.', koble: 'Kretsen var tilkoblet.', tube: 'Tuben lå riktig.', bronkodilatator: 'Ingen bronkospasme; biting på tuben er en mekanisk obstruksjon.', rekruttering: 'Ikke aktuelt; problemet sitter i tuben.', lege: 'Legen finner ikke pneumothorax.', reposisjon: 'Ingen effekt.' },
       resolve: ({ m, fixed }) => fixed && m.ppeak < 35,
-      explanation: 'Når pasienten biter på tuben, stiger resistance kraftig: Ppeak går i taket mens Pplat (målt ved hold) er normal. I volumkontroll pressurerer respiratoren til Pmax; i trykkontroll faller Vt. Løsning: bittblokk, eventuelt sedasjonsbolus. Å heve Pmax-grensen løser ingenting.',
+      explanation: 'Når pasienten biter på tuben, stiger resistance kraftig: Ppeak går i taket mens Pplat (målt ved hold) er normal. I volumkontroll begrenser respiratoren trykket ved Plimit (Pmax − 10), så levert Vt faller og alarmene «Trykkbegrensning» og «Vt lav» kommer; i trykkontroll faller Vt direkte. Løsning: bittblokk, eventuelt sedasjonsbolus. Å heve Pmax-grensen løser ingenting.',
     }],
   },
   {
@@ -100,7 +100,7 @@ export const SITUATIONS = [
     vignette: 'Kvinne, 70 år, pneumoni, intubert døgn 2, ventileres i (S)CMV. Hun har mye sekret og ble sist sugd for fire timer siden.',
     profileId: 'normal', settings: SETT.normalScmv,
     variants: [{
-      id: 'sekret', delay: [10, 25],
+      id: 'sekret', vitals: { hr: 10 }, cues: [{ at: 0, who: 'obs', text: 'Du hører en rasling i tuben når hun puster ut.' }, { at: 45, who: 'obs', text: 'Hun hoster et par ganger uten at det ser ut til å hjelpe.' }, { at: 100, who: 'kollega', text: '«Trykkene har krøpet oppover den siste halvtimen.»' }], delay: [10, 25],
       effect: { resistance: 3.5, resistanceExp: 3.5, shuntAdd: 0.08, rampIn: 60 },
       clues: { lytt: 'Grove, sekretpregede respirasjonslyder (rhonchi) over begge lunger, som endrer seg ved hoste.', se: 'Hun hoster av og til. Synlig sekret i tuben.', krets: 'Kretsen er tett. Kondens i slangene, ikke lekkasje.' },
       fixes: { sug: { text: 'Du suger opp rikelig seigt sekret. Trykket faller.', recover: 0 } },
@@ -116,7 +116,7 @@ export const SITUATIONS = [
     vignette: 'Mann, 62 år, sepsis, ventileres i trykkstøtte (SPONT) med PEEP 6 og lett sedasjon. Dere er to som steller ham, og du har snudd deg for å hente utstyr.',
     profileId: 'normal', patient: { effort: { amplitude: 6, rate: 16, duration: 1 } }, settings: SETT.spont,
     variants: [{
-      id: 'frakobling', delay: [10, 25],
+      id: 'frakobling', vitals: { hr: 30, sys: 10 }, cues: [{ at: 0, who: 'obs', text: 'Du hører et sus fra respiratoren bak deg.' }, { at: 30, who: 'obs', text: 'Pasienten begynner å bevege seg urolig i sengen.' }, { at: 60, who: 'kollega', text: '«Hva er det som alarmerer?»' }], delay: [10, 25],
       effect: { disconnect: true },
       clues: { lytt: 'Svake, overfladiske respirasjonslyder. Han puster selv, men lite.', se: 'Brystet hever seg lite. Han blir gradvis mer urolig.', krets: 'Y-stykket ligger løst på madrassen. Tuben er på plass.' },
       fixes: { koble: { text: 'Du kobler kretsen til tuben igjen. Trykkurven kommer tilbake.', recover: 0 } },
@@ -132,7 +132,7 @@ export const SITUATIONS = [
     vignette: 'Mann, 34 år, traume med ribbeinsbrudd høyre side, intubert, ventileres i (S)CMV. Har vært stabil i to timer.',
     profileId: 'normal', settings: { ...SETT.normalScmv, vt: 520, peep: 6 },
     variants: [{
-      id: 'pneumothorax', delay: [15, 30],
+      id: 'pneumothorax', vitals: { hr: 40, sys: -40, dia: -20 }, cues: [{ at: 0, who: 'obs', text: 'Pasienten blir plutselig urolig og tar seg mot høyre side av brystet.' }, { at: 25, who: 'monitor', text: 'Blodtrykket på monitoren faller.' }, { at: 50, who: 'kollega', text: '«Han ser dårlig ut. Halsvenene er stuvet.»' }], delay: [15, 30],
       effect: { compliance: 0.4, shuntAdd: 0.22, rampIn: 30 },
       clues: { lytt: 'Opphevet respirasjonslyd over høyre lunge. Hypersonor perkusjonslyd på høyre side.', se: 'Høyre thorax beveger seg mindre enn venstre. Halsvenestuvning. Trachea trukket mot venstre. Blodtrykket faller.', krets: 'Kretsen er tett.' },
       fixes: { lege: { text: 'Legen bekrefter trykkpneumothorax og legger inn dren. Lungen folder seg ut.', recover: 45 } },
@@ -148,7 +148,7 @@ export const SITUATIONS = [
     vignette: 'Mann, 68 år, KOLS-eksaserbasjon, intubert i går, ventileres i (S)CMV med I:E 1:3. Auto-PEEP har vært under 2 cmH2O.',
     profileId: 'obstruktiv', patient: { effort: { amplitude: 0, rate: 14, duration: 1 } }, settings: SETT.kolsScmv,
     variants: [{
-      id: 'bronkospasme', delay: [15, 30],
+      id: 'bronkospasme', vitals: { hr: 20 }, cues: [{ at: 0, who: 'obs', text: 'Du hører pipelyder fra sengen, uten stetoskop.' }, { at: 50, who: 'obs', text: 'Han bruker halsmusklene for å puste, og ekspirasjonen tar lang tid.' }, { at: 100, who: 'kollega', text: '«AutoPEEP-verdien stiger.»' }], delay: [15, 30],
       effect: { resistance: 2.2, resistanceExp: 2.6, shuntAdd: 0.08, rampIn: 45 },
       clues: { lytt: 'Uttalte ekspiratoriske pipelyder over begge lunger, forlenget ekspirium.', se: 'Han bruker hjelpemuskler. Ekspirasjonsflowen på skjermen når ikke null før neste pust.', krets: 'Kretsen er tett.' },
       fixes: { bronkodilatator: { text: 'Du gir forstøvet bronkodilatator. Pipelydene avtar gradvis over et par minutter.', recover: 90 } },
@@ -165,7 +165,7 @@ export const SITUATIONS = [
     profileId: 'ards', patient: { compliance: 35, resistance: 10, resistanceExp: 10 }, settings: { ...SETT.normalScmv, vt: 380, rate: 14, peep: 8, fio2: 40 },
     gas: { shunt: 0.15, recruitability: 0.4 },
     variants: [{
-      id: 'asynkroni', delay: [15, 30],
+      id: 'asynkroni', vitals: { hr: 25, sys: 20 }, cues: [{ at: 0, who: 'obs', text: 'Pasienten åpner øynene og rynker pannen.' }, { at: 20, who: 'obs', text: 'Du ser at hun trekker pusten selv midt i maskinpustene; brystet rykker til.' }, { at: 55, who: 'kollega', text: '«Hun kjemper mot maskinen.»' }], delay: [15, 30],
       effect: { effort: { amplitude: 11, rate: 26, duration: 0.7 }, shuntAdd: 0.03 },
       clues: { lytt: 'Normale respirasjonslyder bilateralt.', se: 'Hun er våken, ser på deg, og gjør egne pusteforsøk mellom og under maskinpustene. Bruker hjelpemuskler.', krets: 'Kretsen er tett.' },
       fixes: { sedasjon: { text: 'Hun roer seg og lar maskinen puste for seg. Det løser symptomet, men ikke årsaken: hun er klar for mer egenpust.', recover: 15, partial: { effort: { amplitude: 0, rate: 14, duration: 1 } } } },
@@ -180,6 +180,18 @@ export const SITUATIONS = [
 export function getSituation(id) { return SITUATIONS.find((s) => s.id === id) ?? null; }
 
 const RESOLVE_HOLD = 15; // s sammenhengende oppfylt løsningskriterium
+const VITALS_BASE = { hr: 78, sys: 122, dia: 68, temp: 37.1 };
+
+/** Vitale tegn (puls, blodtrykk) fra baseline, hendelsens effekt og hypoksi. Ren funksjon. */
+export function computeVitals(base, effect, factor, spo2) {
+  const hyp = spo2 < 0.92 ? (0.92 - spo2) * 300 : 0;
+  return {
+    hr: Math.round(base.hr + (effect?.hr ?? 0) * factor + hyp),
+    sys: Math.round(base.sys + (effect?.sys ?? 0) * factor),
+    dia: Math.round(base.dia + (effect?.dia ?? 0) * factor),
+    temp: base.temp,
+  };
+}
 
 /**
  * Lag en kjørbar situasjon. Kaller `hooks` for å påvirke simulatoren:
@@ -191,7 +203,15 @@ export function createSituation(def, { rng = Math.random, hooks } = {}) {
   const st = {
     id: def.id, variantId: variant.id, status: 'baseline', tStart: null, tEvent: null, tFired: null, tFixed: null, tResolved: null,
     log: [], wrongActions: 0, examined: new Set(), baseline: null, fixed: false, ramp: null, resolveSince: null,
+    messages: [], pending: [], cueIndex: 0, flags: {}, factor: 0,
   };
+  const vitalsBase = { ...VITALS_BASE, ...(def.vitalsBase ?? {}) };
+
+  function say(t, who, text) {
+    const m = { t, who, text };
+    st.messages.push(m);
+    st.pending.push(m);
+  }
 
   function applyEffect(e, scale = 1) {
     const b = st.baseline;
@@ -221,22 +241,48 @@ export function createSituation(def, { rng = Math.random, hooks } = {}) {
         st.status = 'active';
         st.tFired = t;
         if (variant.effect.rampIn) st.ramp = { from: 0, to: 1, start: t, duration: variant.effect.rampIn };
-        else applyEffect(variant.effect, 1);
+        else { applyEffect(variant.effect, 1); st.factor = 1; }
       }
       if (st.ramp) {
         const x = Math.min(1, (t - st.ramp.start) / st.ramp.duration);
-        applyEffect(variant.effect, st.ramp.from + (st.ramp.to - st.ramp.from) * x);
+        st.factor = st.ramp.from + (st.ramp.to - st.ramp.from) * x;
+        applyEffect(variant.effect, st.factor);
         if (x >= 1) st.ramp = null;
       }
+      // skriptede meldinger (relativt til hendelsen)
+      if (st.tFired !== null) {
+        const cues = variant.cues ?? [];
+        while (st.cueIndex < cues.length && t - st.tFired >= cues[st.cueIndex].at) {
+          if (!st.fixed) say(t, cues[st.cueIndex].who, cues[st.cueIndex].text);
+          st.cueIndex++;
+        }
+      }
+      // automatiske meldinger fra monitor og respirator
+      const m = ctx.m ?? {};
+      const spo2 = ctx.gas?.spo2 ?? 1;
+      if (spo2 < 0.90 && !st.flags.spo2) { st.flags.spo2 = true; say(t, 'monitor', `Pulsoksymeteret alarmerer: SpO2 ${Math.round(spo2 * 100)} %.`); }
+      if (spo2 >= 0.93 && st.flags.spo2 && !st.flags.spo2ok && st.fixed) { st.flags.spo2ok = true; say(t, 'monitor', `SpO2 er oppe i ${Math.round(spo2 * 100)} % igjen.`); }
+      if (ctx.pmax && m.ppeak > ctx.pmax && !st.flags.ppeak) { st.flags.ppeak = true; say(t, 'respirator', `Høytrykksalarm: Ppeak ${Math.round(m.ppeak)} cmH2O over grensen ${ctx.pmax}.`); }
+      if (m.pressureLimited && !st.flags.plimit) { st.flags.plimit = true; say(t, 'respirator', 'Trykkbegrensning: respiratoren holder igjen ved Plimit, og levert Vt faller.'); }
+      if (ctx.disconnected && !st.flags.disc) { st.flags.disc = true; say(t, 'respirator', 'Alarm: lavt trykk / frakobling. ExpMinVol 0.'); }
+      if (m.autoPeep > 4 && !st.flags.autopeep) { st.flags.autopeep = true; say(t, 'respirator', `AutoPEEP ${m.autoPeep.toFixed(0)} cmH2O: ekspirasjonsflowen når ikke null.`); }
+
       if (st.status === 'active') {
         const ok = variant.resolve({ ...ctx, fixed: st.fixed });
         if (ok) {
           if (st.resolveSince === null) st.resolveSince = t;
-          if (t - st.resolveSince >= RESOLVE_HOLD) { st.status = 'resolved'; st.tResolved = t; }
+          if (t - st.resolveSince >= RESOLVE_HOLD) {
+            st.status = 'resolved'; st.tResolved = t;
+            say(t, 'obs', 'Pasienten ligger rolig igjen. Verdiene er stabile.');
+          }
         } else st.resolveSince = null;
       }
       return st.status;
     },
+    /** Hent nye meldinger siden sist. */
+    drain() { const out = st.pending; st.pending = []; return out; },
+    /** Vitale tegn nå. */
+    vitals(ctx) { return computeVitals(vitalsBase, variant.vitals, st.fixed ? Math.min(st.factor, 0.3) : st.factor, ctx.gas?.spo2 ?? 1); },
     /** Utfør handling. Returnerer { kind, text }. kind: 'ledetrad' | 'riktig' | 'delvis' | 'skadelig' | 'noytral' | 'for-tidlig' */
     act(actionId, t) {
       const a = ACTIONS[actionId];
@@ -258,8 +304,8 @@ export function createSituation(def, { rng = Math.random, hooks } = {}) {
         } else {
           st.fixed = true;
           st.tFixed = st.tFixed ?? t;
-          if (f.recover > 0) st.ramp = { from: 1, to: 0, start: t, duration: f.recover };
-          else { applyEffect(variant.effect, 0); st.ramp = null; }
+          if (f.recover > 0) st.ramp = { from: st.factor, to: 0, start: t, duration: f.recover };
+          else { applyEffect(variant.effect, 0); st.factor = 0; st.ramp = null; }
           res = { kind: 'riktig', text: f.text };
         }
       } else if (variant.harmful[actionId]) {

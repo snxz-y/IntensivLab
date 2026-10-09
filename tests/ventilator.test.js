@@ -26,14 +26,15 @@ test('(S)CMV kontroll: C=50, R=10, Vt=500, flow 60 L/min, PEEP 5 → Pplat 15, P
   assert.equal(m.breathType, 'mandatory');
 });
 
-test('(S)CMV: TIP-pause gir platå med Paw = Pplat, og middeltrykk er rimelig', () => {
+test('(S)CMV: TIP-pause (% av syklustid) gir platå med Paw = Pplat, og middeltrykk er rimelig', () => {
   const v = createVentilator({
-    settings: { mode: 'SCMV', vt: 500, rate: 15, peep: 5, timingMode: 'ti', ti: 1.0, tip: 20 },
+    settings: { mode: 'SCMV', vt: 500, rate: 15, peep: 5, timingMode: 'ti', ti: 1.0, tip: 10 }, // 10 % av 4 s = 0,4 s pause
     patient: { compliance: 50, resistance: 10 },
   });
   const samples = v.run(12);
   const pause = samples.filter((s) => s.phase === 'insp' && s.flow === 0);
   assert.ok(pause.length > 0, 'forventet pausefase');
+  near(v.lastBreath.pauseTime, 0.4, 1e-9);
   near(pause[pause.length - 1].paw, 15, 0.1);
   const m = v.measurements;
   assert.ok(m.pmean > 5 && m.pmean < 15, `pmean ${m.pmean}`);
@@ -146,6 +147,32 @@ test('(S)CMV: pasienttrigger gir mandatorisk pust ved pasientens frekvens', () =
   assert.equal(m.breathType, 'triggered');
   near(m.fTotal, 18, 0.6);
   near(m.vti, 450, 1);
+});
+
+test('manuell pust leveres straks i ekspirasjonsfasen', () => {
+  const v = createVentilator({ settings: { mode: 'SCMV', vt: 500, rate: 6, peep: 5 }, patient: { compliance: 50, resistance: 10 } });
+  v.run(3.5); // midt i en lang ekspirasjon
+  assert.equal(v.phase, 'exp');
+  assert.ok(v.manualBreath());
+  assert.equal(v.phase, 'insp');
+});
+
+test('trykkbegrensning: VC leverer mindre volum når Paw ville overstige Plimit, høytrykk avbryter', () => {
+  // R=40 → Ppeak ville blitt 5 + 10 + 40 = 55 > Plimit 30
+  const v = createVentilator({ settings: { mode: 'SCMV', vt: 500, rate: 12, peep: 5, timingMode: 'ti', ti: 0.5, pmax: 40 }, patient: { compliance: 50, resistance: 40 } });
+  v.run(20);
+  const m = v.measurements;
+  assert.ok(m.pressureLimited, 'skal være trykkbegrenset');
+  assert.ok(m.ppeak <= 30.5, `ppeak ${m.ppeak}`);
+  assert.ok(m.vti < 450, `vti ${m.vti}`);
+  // PCV: Pcontrol 40 over PEEP 5 begrenses til Plimit 30
+  const p = createVentilator({ settings: { mode: 'PCV', pcontrol: 40, rate: 12, peep: 5, pmax: 40 }, patient: { compliance: 50, resistance: 10 } });
+  p.run(20);
+  assert.ok(p.measurements.ppeak <= 30.1 && p.measurements.pressureLimited);
+  // Pasient som biter (R 60) i VC med Pmax 30: Paw når Pmax? Plimit holder den under, så ingen høytrykk
+  const b = createVentilator({ settings: { mode: 'SCMV', vt: 500, rate: 12, peep: 5, pmax: 30 }, patient: { compliance: 50, resistance: 60 } });
+  b.run(20);
+  assert.ok(b.measurements.ppeak <= 20.5);
 });
 
 test('innstillingsendring virker fra neste pust', () => {

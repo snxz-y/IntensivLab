@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { SITUATIONS, ACTIONS, createSituation, gasForProfile } from '../modules/respirator/scenarios.js';
+import { SITUATIONS, ACTIONS, createSituation, gasForProfile, computeVitals } from '../modules/respirator/scenarios.js';
 import { createVentilator } from '../core/sim/ventilator.js';
 import { createGasModel } from '../core/sim/gasModel.js';
 import { getProfile } from '../modules/respirator/profiles.js';
@@ -21,7 +21,7 @@ function rig(def, variantIndex = 0) {
     const m = vent.measurements;
     gas.setVentilation({ vtMl: vent.disconnected ? 0 : (m.vte ?? 0), rate: m.fTotal ?? 0, fio2: vent.settings.fio2 / 100, peep: m.peepTotal ?? vent.settings.peep, ibwKg: m.ibw ?? 70 });
   };
-  const run = (seconds) => { for (let i = 0; i < seconds; i++) { vent.run(1); update(); gas.step(1); sit.tick(vent.time, { m: vent.measurements, gas: gas.state, settings: vent.settings }); } };
+  const run = (seconds) => { for (let i = 0; i < seconds; i++) { vent.run(1); update(); gas.step(1); sit.tick(vent.time, { m: vent.measurements, gas: gas.state, settings: vent.settings, pmax: 40, disconnected: vent.disconnected }); } };
   return { vent, gas, sit, run };
 }
 
@@ -112,6 +112,28 @@ test('asynkroni løses ved bytte til SPONT', () => {
   run(60);
   assert.equal(sit.state.status, 'resolved');
   assert.equal(sit.summary().timeToFix, null); // løst uten «tiltak»
+});
+
+test('meldinger: skriptede ledetråder kommer i rekkefølge, automatiske alarmer én gang', () => {
+  const { vent, gas, sit, run } = rig(SITUATIONS.find((s) => s.id === 'pneumothorax'));
+  vent.run(30); sit.start(vent.time); run(5); gas.settle();
+  assert.equal(sit.drain().length, 0);
+  run(120);
+  const msgs = sit.drain();
+  assert.ok(msgs.length >= 3, `fikk ${msgs.length} meldinger`);
+  assert.equal(msgs[0].who, 'obs');
+  assert.ok(msgs.some((m) => m.who === 'kollega'));
+  assert.ok(msgs.every((m) => typeof m.t === 'number' && m.text.length > 5));
+  const v = sit.vitals({ gas: gas.state });
+  assert.ok(v.hr > 100 && v.sys < 100, JSON.stringify(v));
+  assert.equal(sit.drain().length, 0);
+});
+
+test('computeVitals: hypoksi gir takykardi, fiks demper effekten', () => {
+  const base = { hr: 78, sys: 122, dia: 68, temp: 37 };
+  assert.equal(computeVitals(base, { hr: 30 }, 1, 0.97).hr, 108);
+  assert.ok(computeVitals(base, { hr: 30 }, 1, 0.85).hr > 108);
+  assert.equal(computeVitals(base, { hr: 30 }, 0, 0.97).hr, 78);
 });
 
 test('end() setter pasienten tilbake', () => {

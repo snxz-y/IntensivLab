@@ -37,16 +37,17 @@ export const DEFAULT_SETTINGS = {
   timingMode: 'ie',   // 'ie' | 'ti'
   ie: { i: 1, e: 2 },
   ti: 1.0,            // s (brukes når timingMode = 'ti')
-  tip: 0,             // pause i % av TI (UVERIFISERT om Hamilton bruker % av TI eller syklus)
+  tip: 0,             // Pause i % av total syklustid (Hamilton-C6 brukerhåndbok, kap. 7.2)
   flowPattern: 'square', // 'square' | 'decel'
   pcontrol: 15,       // cmH2O over PEEP
   psupport: 10,       // cmH2O over PEEP
   pramp: 50,          // ms
   ets: 25,            // % av toppflow
   trigger: { type: 'flow', value: 2 }, // L/min (flow) eller cmH2O (pressure)
-  tiMax: 2.0,         // s, maks inspirasjonstid i SPONT
+  tiMax: 1.5,         // s, maks inspirasjonstid i SPONT (Hamilton-C6 standard voksen: 1,5 s)
   apneaTime: 20,      // s før backup i SPONT
   backup: { rate: 12, pcontrol: 15 },
+  pmax: 40,           // høy trykkalarmgrense (cmH2O). Plimit = Pmax − 10 (Hamilton-C6 brukerhåndbok)
 };
 
 export const DEFAULT_PATIENT = {
@@ -107,7 +108,7 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
     vti: null, vte: null, expMinVol: null, fTotal: null, fSpont: null,
     cstat: null, rinsp: null, rcexp: null, drivingPressure: null,
     ti: null, te: null, ieText: null, vtPerKg: null, ibw: null,
-    breathType: null, cycleReason: null, mode: s.mode,
+    breathType: null, cycleReason: null, mode: s.mode, pressureLimited: false, highPressure: false,
   };
 
   function ibw() { return idealBodyWeightHamilton(p.height, p.sex); }
@@ -135,15 +136,16 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
     const b = {
       type, mode, start: t, vStart: lung.state.volume, peepSet: s.peep,
       ti: null, te: null, tcycle: null,
-      ppeak: -Infinity, pawInt: 0, vti: 0, vte: 0,
+      ppeak: -Infinity, pawInt: 0, vti: 0, vte: 0, pressureLimited: false, highPressure: false,
       endInspPalv: null, endInspFlow: null, endInspPaw: null, endExpPalv: null,
       peakFlow: 0, cycleReason: null,
       reg: { n: 0, sx: 0, sy: 0, sxx: 0, sxy: 0 }, // regresjon flow vs volum i ekspirasjon
       expSampleStart: null,
     };
     if (mode === 'SCMV' && type !== 'backup') {
-      b.flowTime = ti * (1 - Math.min(70, Math.max(0, s.tip)) / 100);
-      b.pauseTime = ti - b.flowTime;
+      // Pause settes i % av total syklustid og ligger inne i TI (maks 70 % av TI)
+      b.pauseTime = Math.min(0.7 * ti, tc * Math.min(70, Math.max(0, s.tip)) / 100);
+      b.flowTime = ti - b.pauseTime;
       b.peakSetFlow = peakFlowForVolume(s.vt, b.flowTime, s.flowPattern);
       b.tiSet = ti;
     } else if (mode === 'PCV' && type !== 'backup') {
@@ -207,6 +209,8 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
     m.mode = s.mode;
     m.breathType = b.type;
     m.cycleReason = b.cycleReason;
+    m.pressureLimited = b.pressureLimited;
+    m.highPressure = b.highPressure;
     m.ppeak = b.ppeak;
     m.pplat = b.endInspPalv;
     m.pmean = b.pawInt / b.tcycle;
@@ -330,6 +334,13 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
           let flow = flowAtFraction(b.peakSetFlow, elapsed / b.flowTime, s.flowPattern);
           const remaining = s.vt - b.vti;
           if (flow * dt * 1000 > remaining) flow = remaining / (dt * 1000);
+          // Trykkbegrensning (Plimit = Pmax − 10): flow reduseres så Paw ikke overstiger Plimit
+          const plimit = s.pmax - 10;
+          const pawPred = lung.state.volume / lung.state.compliance - pmus + lung.state.resistance * flow;
+          if (!disconnected && pawPred > plimit) {
+            flow = Math.max(0, (plimit - (lung.state.volume / lung.state.compliance - pmus)) / lung.state.resistance);
+            b.pressureLimited = true;
+          }
           L().stepFlow(dt, flow, pmus);
         } else if (elapsed < b.tiSet - 1e-9) {
           L().stepOccluded(dt, pmus);
@@ -340,7 +351,8 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
       } else {
         // trykkstyrt (PCV+, SPONT, backup)
         const ramp = b.rampTime > 0 ? Math.min(1, elapsed / b.rampTime) : 1;
-        const target = s.peep + (b.ptarget - s.peep) * ramp;
+        let target = s.peep + (b.ptarget - s.peep) * ramp;
+        if (target > s.pmax - 10) { target = s.pmax - 10; b.pressureLimited = true; }
         L().stepPressure(dt, target, pmus);
         const flow = lung.state.flow;
         if (flow > b.peakFlow) b.peakFlow = flow;
@@ -358,6 +370,11 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
         }
       }
       if (!disconnected && lung.state.deltaVolume > 0) b.vti += lung.state.deltaVolume;
+      if (phase === 'insp' && lung.state.paw >= s.pmax) {
+        // Høytrykksalarm: respiratoren åpner ekspirasjonsventilen umiddelbart
+        b.highPressure = true;
+        endInspiration();
+      }
     } else if (phase === 'hold-insp') {
       L().stepOccluded(dt, pmus);
       breath.holdTime = (breath.holdTime || 0) + dt;
@@ -426,6 +443,14 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
         if (p.effort.amplitude <= 0) effortNext = Infinity;
       }
       return p;
+    },
+
+    /** Lever én mandatorisk pust nå (Hamilton: «Manual breath»). Virker bare i ekspirasjonsfasen. */
+    manualBreath() {
+      if (phase !== 'exp' || hold.active) return false;
+      if (breath) finishBreath();
+      startBreath(s.mode === 'SPONT' ? 'backup' : 'mandatory');
+      return true;
     },
 
     /** Be om hold ved neste faseovergang. type: 'insp' | 'exp' */
