@@ -1,0 +1,12 @@
+{
+  "name": "intensivlab",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Læringsplattform for intensivsykepleie. Læringsverktøy, ikke til klinisk bruk.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test \"tests/**/*.test.js\"",
+    "start": "python3 -m http.server 8000"
+  },
+  "license": "MIT"
+}

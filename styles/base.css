@@ -1,0 +1,94 @@
+/* IntensivLab – grunnstiler, mørkt tema */
+:root {
+  --bg: #0f1419;
+  --bg-elev: #161c24;
+  --bg-elev-2: #1d2530;
+  --border: #2a3441;
+  --fg: #e6edf3;
+  --fg-muted: #9aa7b5;
+  --fg-faint: #6b7784;
+  --accent: #4cc2ff;
+  --accent-strong: #1f9be0;
+  --ok: #3fd18a;
+  --warn: #f2b84b;
+  --danger: #ff6b6b;
+  --curve-pressure: #f6c445;
+  --curve-flow: #5ee0a0;
+  --curve-volume: #6fb3ff;
+  --radius: 10px;
+  --radius-sm: 6px;
+  --gap: 12px;
+  --touch: 44px;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.45;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+h1, h2, h3, h4 { margin: 0 0 0.4em; line-height: 1.2; font-weight: 650; }
+h1 { font-size: 1.5rem; }
+h2 { font-size: 1.25rem; }
+h3 { font-size: 1.05rem; }
+p { margin: 0 0 0.75em; }
+code, .mono { font-family: var(--mono); font-size: 0.95em; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.app { min-height: 100%; display: flex; flex-direction: column; }
+
+.topbar {
+  display: flex; align-items: center; gap: var(--gap); flex-wrap: wrap;
+  padding: 10px 16px;
+  padding-top: max(10px, env(safe-area-inset-top));
+  background: var(--bg-elev);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 10;
+}
+.brand { font-weight: 750; font-size: 1.15rem; letter-spacing: 0.01em; color: var(--fg); }
+.brand:hover { text-decoration: none; }
+.nav { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+.nav a {
+  display: inline-flex; align-items: center; min-height: 40px; padding: 0 14px;
+  border-radius: 999px; color: var(--fg-muted); border: 1px solid transparent;
+}
+.nav a:hover { text-decoration: none; color: var(--fg); background: var(--bg-elev-2); }
+.nav a.active { color: var(--fg); background: var(--bg-elev-2); border-color: var(--border); }
+
+.disclaimer {
+  display: block; text-align: center; font-size: 0.85rem; font-weight: 600;
+  padding: 6px 12px; background: #3a2d10; color: var(--warn);
+  border-bottom: 1px solid #5a4719;
+}
+
+.main { flex: 1; padding: 16px; max-width: 1400px; width: 100%; margin: 0 auto; }
+.footer {
+  padding: 14px 16px; padding-bottom: max(14px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border);
+  color: var(--fg-faint); font-size: 0.85rem; text-align: center;
+}
+.footer strong { color: var(--warn); }
+
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.muted { color: var(--fg-muted); }
+.faint { color: var(--fg-faint); }
+.ok { color: var(--ok); }
+.warn { color: var(--warn); }
+.danger { color: var(--danger); }
+.right { text-align: right; }
+
+@media (max-width: 600px) {
+  .main { padding: 12px; }
+  .brand { font-size: 1.05rem; }
+}

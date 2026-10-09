@@ -1,6 +1,20 @@
 # IntensivLab – plan (v1)
 
-Status: venter på godkjenning før koding.
+Status: godkjent 2026-10-09. Valg: Hamilton-konvensjoner i respiratoren, anion gap uten kalium.
+
+## Hamilton-konvensjoner (brukes i respiratormodulen)
+- Modusnavn: (S)CMV = volumkontroll, PCV+ = trykkontroll, SPONT = trykkstøtte.
+- Pcontrol og Psupport settes OVER PEEP (ikke absolutt). Pinsp vist = PEEP + Pcontrol.
+- Innstillinger: Vt, Frekvens, PEEP/CPAP, Oksygen (%), I:E eller TI (bytte), Pcontrol,
+  Psupport, Pramp (trykkstigetid, ms), ETS (ekspiratorisk triggerfølsomhet, % av
+  toppflow), Trigger (flow i L/min eller trykk i cmH2O), TIP (pause i % av syklus,
+  (S)CMV), flowmønster (firkant / deselererende 50 %).
+- Måleverdinavn: Ppeak, Pplat, Pmean, PEEP/CPAP, AutoPEEP, VTI, VTE, ExpMinVol,
+  fTotal, Cstat, Rinsp, RCexp, Vt/kg IBW, I:E, TI, TE.
+- IBW (ideal body weight) fra høyde og kjønn, vist som Vt/kg IBW.
+- Manøvrer: inspiratorisk hold og ekspiratorisk hold (som i Hamiltons «Verktøy»).
+Alt over er mine gjengivelser av Hamiltons terminologi; tall (standardverdier,
+områder) merkes UVERIFISERT i KILDER.md der jeg ikke kan belegge dem.
 
 ## Rammer (fra bestilling)
 - Statisk app, vanilla JS (ES-moduler), HTML, CSS. Ingen byggesteg, ingen backend. GitHub Pages.
@@ -138,8 +152,7 @@ Statistikk: treff/forsøk per trinn og per forstyrrelsestype i localStorage; nes
 vektes mot svakeste kombinasjon (med litt tilfeldighet).
 
 ## Avklaringer (jeg bruker standardvalget hvis du ikke sier noe)
-1. Anion gap: uten K, referanse ca. 8–12 mmol/L (Figge-korreksjon er definert for
-   denne). Kan gjøres valgbar (med K) i innstillinger.
+1. Anion gap: uten K (bekreftet), referanse ca. 8–12 mmol/L.
 2. Kompensasjonsregler: klassiske mmHg-baserte regler (Winter osv.) regnet om til kPa.
 3. Svarform: trinn 1, 2, 7 er valg; trinn 3–6 er tall + vurdering.
 
