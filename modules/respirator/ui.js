@@ -1,13 +1,12 @@
 /**
- * Respiratorsimulator – brukergrensesnitt.
+ * Respiratorsimulator – brukergrensesnitt etter HAMILTON-C6.
  *
  * Venstre: «respiratoren», lagt opp etter HAMILTON-C6s hovedskjerm (brukerhåndbok kap. 2.2.2):
- *   modus øverst til venstre, fargekodet meldingslinje med Audio pause, MMP-kolonne til venstre
- *   med alarmgrenser, grafikk i midten, vindusknapper til høyre (Alarmer, Kontroller,
- *   Monitorering, Grafikk, Verktøy, Hendelser, System), hurtigknapper og hovedkontroller nederst.
- * Høyre: sidepanel med pasientmonitor, pasientoppsett, situasjoner (meldingsfeed, undersøkelser,
- *   tiltak) og oppgaver. Panelet ligger utenfor respiratorskjermen, så det forsvinner ikke når du
- *   justerer respiratoren.
+ *   modus øverst til venstre, fargekodet meldingslinje med Audio pause-nedtelling, MMP-kolonne til
+ *   venstre med alarmgrenser (gul/rød ved alarm), grafikk i midten med valgfrie intelligente paneler
+ *   (Dynamic Lung, Vent Status) eller sløyfer, vindusknappene Alarmer, Kontroller, Monitorering,
+ *   Grafikk, Verktøy, Hendelser og System til høyre, hurtigknapper og hovedkontroller nederst.
+ * Høyre: sidepanel med pasientmonitor, pasientoppsett, caser (meldingsfeed og valg 1 av 5) og oppgaver.
  */
 import { h, clear } from '../../core/ui/dom.js';
 import { slider, select, segmented, button, toggle } from '../../core/ui/controls.js';
@@ -20,7 +19,7 @@ import { timeConstant, idealBodyWeightHamilton } from '../../core/physiology/res
 import { createGasModel } from '../../core/sim/gasModel.js';
 import { createVentAudio } from '../../core/audio/ventSounds.js';
 import { PROFILES, getProfile } from './profiles.js';
-import { TASKS, taskSetup, evaluateTask, predictionFor, MEASURES, settingLabel } from './tasks.js';
+import { TASKS, CATEGORIES, taskSetup, evaluateTask, predictionFor, MEASURES, settingLabel } from './tasks.js';
 import { SITUATIONS, ACTIONS, createSituation, gasForProfile, computeVitals } from './scenarios.js';
 
 const IE_OPTIONS = [
@@ -32,12 +31,12 @@ const IE_OPTIONS = [
 const ieKey = (ie) => (ie.i === 1 ? `1:${ie.e}` : `${ie.i}:1`);
 const ieLabel = (ie) => ieKey(ie).replace('.', ',');
 
-/** MMP-er (Hamilton: Ppeak alltid øverst). limits: hvilke alarmgrenser som vises. */
+/** MMP-er (Hamilton: Ppeak alltid øverst; alarmgrenser ved verdien). */
 const MMP_MAIN = [
   { key: 'ppeak', label: 'Ppeak', unit: 'cmH2O', d: 0, limits: ['pmax', null] },
   { key: 'peepTotal', label: 'PEEP/CPAP', unit: 'cmH2O', d: 1 },
   { key: 'vte', label: 'VTE', unit: 'ml', d: 0, limits: ['vtHigh', 'vtLow'] },
-  { key: 'expMinVol', label: 'ExpMinVol', unit: 'L/min', d: 1, limits: ['mvHigh', 'mvLow'] },
+  { key: 'expMinVol', label: 'ExpMinVol', unit: 'l/min', d: 1, limits: ['mvHigh', 'mvLow'] },
   { key: 'fTotal', label: 'fTotal', unit: 'b/min', d: 0 },
   { key: 'pplat', label: 'Pplateau', unit: 'cmH2O', d: 0 },
   { key: 'autoPeep', label: 'AutoPEEP', unit: 'cmH2O', d: 1 },
@@ -46,28 +45,25 @@ const MMP_MAIN = [
 ];
 const MMP_ALL = [
   ...MMP_MAIN,
-  { key: 'pmean', label: 'Pmean', unit: 'cmH2O', d: 1 },
-  { key: 'drivingPressure', label: 'ΔP (drivtrykk)', unit: 'cmH2O', d: 1 },
-  { key: 'vti', label: 'VTI', unit: 'ml', d: 0 },
-  { key: 'vtPerKg', label: 'Vt/IBW', unit: 'ml/kg', d: 1 },
-  { key: 'fSpont', label: 'fSpont', unit: 'b/min', d: 0 },
-  { key: 'cstat', label: 'Cstat', unit: 'ml/cmH2O', d: 0 },
-  { key: 'rinsp', label: 'Rinsp', unit: 'cmH2O/(L/s)', d: 0 },
-  { key: 'rcexp', label: 'RCexp', unit: 's', d: 2 },
-  { key: 'ti', label: 'TI', unit: 's', d: 2 }, { key: 'te', label: 'TE', unit: 's', d: 2 },
-  { key: 'ieText', label: 'I:E', unit: '', d: null }, { key: 'ibw', label: 'IBW', unit: 'kg', d: 1 },
+  { key: 'pmean', label: 'Pmean', unit: 'cmH2O', d: 1 }, { key: 'drivingPressure', label: 'ΔP (drivtrykk)', unit: 'cmH2O', d: 1 }, { key: 'pinsp', label: 'ΔPinsp', unit: 'cmH2O', d: 1 },
+  { key: 'vti', label: 'VTI', unit: 'ml', d: 0 }, { key: 'vtPerKg', label: 'Vt/IBW', unit: 'ml/kg', d: 1 }, { key: 'fSpont', label: 'fSpont', unit: 'b/min', d: 0 },
+  { key: 'cstat', label: 'Cstat', unit: 'ml/cmH2O', d: 0 }, { key: 'rinsp', label: 'Rinsp', unit: 'cmH2O/(l/s)', d: 0 }, { key: 'rcexp', label: 'RCexp', unit: 's', d: 2 },
+  { key: 'ti', label: 'TI', unit: 's', d: 2 }, { key: 'te', label: 'TE', unit: 's', d: 2 }, { key: 'ieText', label: 'I:E', unit: '', d: null }, { key: 'ibw', label: 'IBW', unit: 'kg', d: 1 },
   { key: 'paco2', label: 'PaCO2 (modell)', unit: 'kPa', d: 1 }, { key: 'pao2', label: 'PaO2 (modell)', unit: 'kPa', d: 1 },
 ];
+/** Sekundære monitoreringsparametre (C6 standard-SMP: Vt/IBW, Pplateau, RCexp, TI, ΔP, Pmean, Cstat, fSpont). */
+const SMP = [['vtPerKg', 'Vt/IBW', 'ml/kg', 1], ['pplat', 'Pplateau', 'cmH2O', 0], ['rcexp', 'RCexp', 's', 2], ['ti', 'TI', 's', 2], ['drivingPressure', 'ΔP', 'cmH2O', 0], ['pmean', 'Pmean', 'cmH2O', 1], ['cstat', 'Cstat', 'ml/cmH2O', 0], ['fSpont', 'fSpont', 'b/min', 0]];
 const WINDOWS = [
   ['alarms', '🔔', 'Alarmer'], ['controls', '⚙', 'Kontroller'], ['monitor', '📈', 'Monitorering'],
   ['graphics', '📉', 'Grafikk'], ['tools', '🛠', 'Verktøy'], ['events', '📋', 'Hendelser'], ['system', '🖥', 'System'],
 ];
 const WHO = { obs: ['👁', 'Observasjon'], kollega: ['🧑‍⚕️', 'Kollega'], monitor: ['📟', 'Monitor'], respirator: ['🫁', 'Respirator'], handling: ['✋', 'Du'] };
 
-/** Standard Vt ved oppstart: 8 ml/kg IBW (Hamilton-C6: Vt/IBW standard 8 ml/kg, avrundet til 10 ml). */
+/** Standard Vt ved oppstart: 8 ml/kg IBW (Hamilton: Vt/IBW standard 8 ml/kg), avrundet til 10 ml. */
 function startupVt(patient) {
   return Math.max(200, Math.round((8 * idealBodyWeightHamilton(patient.height, patient.sex)) / 10) * 10);
 }
+const clock = (t) => `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 
 export function mountRespirator(container, ctx) {
   const { storage } = ctx;
@@ -79,15 +75,14 @@ export function mountRespirator(container, ctx) {
   audio.setOptions(storage.get('respirator:audio', {}));
   const saveAudio = () => storage.set('respirator:audio', audio.options);
   storage.remove('respirator:state');
-  const progress = storage.get('respirator:progress', { tasks: {}, predictions: { correct: 0, total: 0 }, situations: {} });
-  progress.situations ??= {};
+  const progress = storage.get('respirator:progress', { predictions: { correct: 0, total: 0 } });
+  progress.predictions ??= { correct: 0, total: 0 };
   const saveProgress = () => storage.set('respirator:progress', progress);
 
   const ui = {
-    running: true, frozen: false, speed: 1, window: null, showLoops: window.innerWidth > 900, profileId,
-    raf: 0, acc: 0, lastNow: null, lastHoldTime: null, lastBreathTime: 0,
-    task: null, situation: null, tab: 'patient', unread: 0,
-    o2Enrich: null, // { until, prev }
+    running: true, frozen: false, speed: 1, window: null, layout: window.innerWidth > 900 ? 'panels' : 'curves', profileId,
+    raf: 0, acc: 0, lastNow: null, lastHoldTime: null, lastBreathTime: 0, autoHoldUntil: null,
+    task: null, situation: null, tab: 'patient', unread: 0, o2Enrich: null,
     alarms: { mvLow: 3, mvHigh: 15, vtLow: 200, vtHigh: 1000, spo2Low: 90, apnea: 20 },
     activeAlarms: [], events: [],
   };
@@ -99,13 +94,12 @@ export function mountRespirator(container, ctx) {
   const mmpCol = h('div', { class: 'hc-mmp' });
   const curves = h('div', { class: 'hc-curves' });
   const loops = h('div', { class: 'hc-loops' });
-  const waves = h('div', { class: 'hc-waves' }, curves, loops);
+  const panels = h('div', { class: 'hc-panels' });
+  const waves = h('div', { class: 'hc-waves' }, curves, loops, panels);
   const side = h('div', { class: 'hc-side' });
   const quick = h('div', { class: 'hc-quick' });
   const settingsBar = h('div', { class: 'hc-settings' });
-  const hc = h('div', { class: 'hc' },
-    h('div', { class: 'hc-top' }, modeBtn, msgBar, clockBox),
-    mmpCol, waves, side, h('div', { class: 'hc-bottom' }, quick, settingsBar));
+  const hc = h('div', { class: 'hc' }, h('div', { class: 'hc-top' }, modeBtn, msgBar, clockBox), mmpCol, waves, side, h('div', { class: 'hc-bottom' }, quick, settingsBar));
 
   const pmon = h('div', { class: 'pmon', 'aria-label': 'Pasientmonitor' });
   const sideTabs = h('div', { class: 'side-tabs' });
@@ -114,7 +108,7 @@ export function mountRespirator(container, ctx) {
   const root = h('div', { class: 'lab' }, hc, panel);
   container.append(root);
 
-  // ======================= Kurver =======================
+  // ======================= Kurver, sløyfer, paneler =======================
   const cssColor = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#fff';
   const sc = {
     paw: createScope(h('div', {}), { label: 'Paw', unit: 'cmH2O', color: cssColor('--curve-pressure'), range: [-5, 40], sweepSeconds: 11 }),
@@ -126,9 +120,76 @@ export function mountRespirator(container, ctx) {
   const fvLoop = createLoop(h('div', {}), { title: 'Volum/flow', xLabel: 'Volum ml / Flow l/min', color: cssColor('--curve-flow'), xRange: [0, 600], yRange: [-60, 60] });
   loops.append(pvLoop.wrap, fvLoop.wrap);
   let loopCur = { pv: [], fv: [] }, loopPrev = { pv: [], fv: [] }, loopBreathRef = null, sampleCount = 0;
+  const updateMarkers = () => sc.paw.setMarkers([{ value: vent.settings.pmax, color: '#e53935' }, { value: vent.settings.pmax - 10, color: '#4cc2ff', dash: [2, 4] }]);
 
-  function updateMarkers() {
-    sc.paw.setMarkers([{ value: vent.settings.pmax, color: '#e53935' }, { value: vent.settings.pmax - 10, color: '#4cc2ff', dash: [2, 4] }]);
+  // Dynamic Lung (C6 intelligent panel): lungene utvider seg med volumet, farge etter compliance, bronkiebredde etter resistance
+  const NS = 'http://www.w3.org/2000/svg';
+  const svgEl = (tag, attrs) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
+  const lungSvg = svgEl('svg', { viewBox: '0 0 200 220', 'aria-label': 'Dynamic Lung' });
+  const trachea = svgEl('rect', { x: 94, y: 10, width: 12, height: 50, rx: 5, fill: '#9aa7b5' });
+  const bronchL = svgEl('path', { d: 'M100 58 L74 90', stroke: '#9aa7b5', 'stroke-width': 8, fill: 'none', 'stroke-linecap': 'round' });
+  const bronchR = svgEl('path', { d: 'M100 58 L126 90', stroke: '#9aa7b5', 'stroke-width': 8, fill: 'none', 'stroke-linecap': 'round' });
+  const lungL = svgEl('path', { d: '', fill: '#4cc2ff', opacity: 0.85 });
+  const lungR = svgEl('path', { d: '', fill: '#4cc2ff', opacity: 0.85 });
+  const trigIcon = svgEl('text', { x: 100, y: 212, 'text-anchor': 'middle', 'font-size': 14, fill: '#3fd18a' });
+  lungSvg.append(lungL, lungR, trachea, bronchL, bronchR, trigIcon);
+  const dlVals = h('div', { class: 'dl-vals' });
+  const dynLung = h('div', { class: 'hc-panel' }, h('div', { class: 'hc-panel-title' }, 'Dynamic Lung'), h('div', { class: 'dynlung' }, lungSvg, dlVals));
+  const ventStatus = h('div', { class: 'ventstatus' });
+  const ventStatusPanel = h('div', { class: 'hc-panel' }, h('div', { class: 'hc-panel-title' }, 'Vent Status'), ventStatus);
+  panels.append(dynLung, ventStatusPanel);
+  function lungPath(side, scale) {
+    // enkel lungeform som skaleres rundt hilus
+    const s = 0.75 + 0.35 * scale;
+    const cx = side === 'L' ? 70 : 130, cy = 140, sgn = side === 'L' ? -1 : 1;
+    const w = 42 * s, hgt = 70 * s;
+    return `M${cx + sgn * 4} ${cy - hgt * 0.75} C ${cx + sgn * (4 + w)} ${cy - hgt}, ${cx + sgn * (4 + w)} ${cy + hgt * 0.9}, ${cx + sgn * 8} ${cy + hgt * 0.8} C ${cx - sgn * 10} ${cy + hgt * 0.6}, ${cx - sgn * 12} ${cy - hgt * 0.2}, ${cx + sgn * 4} ${cy - hgt * 0.75} Z`;
+  }
+  function drawDynamicLung(sample) {
+    const p = vent.patient, m = vent.measurements;
+    const vtRef = Math.max(300, (m.vti ?? 500));
+    const fill = Math.max(0, Math.min(1.2, (sample?.volume ?? 0) / vtRef));
+    lungL.setAttribute('d', lungPath('L', fill)); lungR.setAttribute('d', lungPath('R', fill));
+    const cNorm = Math.max(0, Math.min(1, (p.compliance - 15) / 60)); // lav compliance = blå→grå/stiv, høy = lys
+    const col = `hsl(${200 - 40 * (1 - cNorm)}, ${60 + 30 * cNorm}%, ${45 + 20 * cNorm}%)`;
+    lungL.setAttribute('fill', col); lungR.setAttribute('fill', col);
+    const rW = Math.max(2, 10 - (p.resistance - 5) / 5); // høy resistance = smale bronkier
+    bronchL.setAttribute('stroke-width', rW); bronchR.setAttribute('stroke-width', rW);
+    trigIcon.textContent = m.breathType === 'triggered' || m.breathType === 'spont' ? '▲ pasienttrigget' : '';
+    dlVals.replaceChildren(
+      h('span', {}, 'Cstat', h('b', {}, `${fmt(m.cstat, 0)} ml/cmH2O`)),
+      h('span', {}, 'Rinsp', h('b', {}, `${fmt(m.rinsp, 0)}`)),
+      h('span', {}, 'VTE', h('b', {}, `${fmt(m.vte, 0)} ml`)),
+      h('span', {}, 'SpO2 / puls', h('b', {}, `${fmt(gas.state.spo2 * 100, 0)} % / ${currentVitals().hr}`)));
+  }
+  /** Vent Status: seks parametre med avvenningssone (grønn ramme når alle er i sonen). Soner er pedagogiske valg. */
+  const VS = [
+    { key: 'fio2', label: 'Oksygen %', get: () => vent.settings.fio2, min: 21, max: 100, zone: [21, 40] },
+    { key: 'peep', label: 'PEEP', get: () => vent.measurements.peepTotal ?? vent.settings.peep, min: 0, max: 20, zone: [0, 8] },
+    { key: 'pinsp', label: 'ΔPinsp', get: () => vent.measurements.pinsp ?? (vent.settings.mode === 'SPONT' ? vent.settings.psupport : vent.settings.pcontrol), min: 0, max: 35, zone: [0, 10] },
+    { key: 'mv', label: 'MinVol l/min', get: () => vent.measurements.expMinVol ?? 0, min: 0, max: 15, zone: [4, 10] },
+    { key: 'spont', label: 'Spontan %', get: () => (vent.measurements.fTotal ? 100 * (vent.measurements.fSpont ?? 0) / vent.measurements.fTotal : 0), min: 0, max: 100, zone: [60, 100] },
+    { key: 'rsb', label: 'RSB', get: () => (vent.measurements.vte > 0 ? vent.measurements.fTotal / (vent.measurements.vte / 1000) : 0), min: 0, max: 200, zone: [0, 105] },
+  ];
+  function drawVentStatus() {
+    let allIn = true;
+    const items = VS.map((d) => {
+      const v = d.get() ?? 0;
+      const pct = (x) => Math.max(0, Math.min(100, (100 * (x - d.min)) / (d.max - d.min)));
+      const inZone = v >= d.zone[0] && v <= d.zone[1];
+      if (!inZone) allIn = false;
+      return h('div', { class: 'vs' },
+        h('div', { class: 'vs-bar' }, h('div', { class: 'vs-zone', style: { bottom: `${pct(d.zone[0])}%`, height: `${pct(d.zone[1]) - pct(d.zone[0])}%` } }), h('div', { class: `vs-mark ${inZone ? 'in' : ''}`, style: { bottom: `${pct(v)}%` } })),
+        h('div', { class: 'vs-value' }, fmt(v, 0)), h('div', { class: 'vs-label' }, d.label));
+    });
+    ventStatus.replaceChildren(...items);
+    ventStatus.classList.toggle('weaning', allIn);
+  }
+  function applyLayout() {
+    waves.classList.toggle('with-loops', ui.layout === 'loops');
+    waves.classList.toggle('with-panels', ui.layout === 'panels');
+    loops.style.display = ui.layout === 'loops' ? '' : 'none';
+    panels.style.display = ui.layout === 'panels' ? '' : 'none';
   }
 
   // ======================= MMP =======================
@@ -136,29 +197,24 @@ export function mountRespirator(container, ctx) {
   for (const m of MMP_MAIN) {
     const val = h('div', { class: 'mmp-value' }, '–');
     const lim = h('div', { class: 'mmp-limits' });
-    const el = h('div', { class: 'mmp', onClick: () => openWindow('alarms', m.key) },
-      h('div', { class: 'mmp-main' }, h('div', { class: 'mmp-label' }, m.label, h('span', { class: 'mmp-unit' }, m.unit)), val), lim);
+    const el = h('div', { class: 'mmp', onClick: () => openWindow('alarms', m.key) }, h('div', { class: 'mmp-main' }, h('div', { class: 'mmp-label' }, m.label, h('span', { class: 'mmp-unit' }, m.unit)), val), lim);
     mmpTiles[m.key] = { el, val, lim, def: m };
     mmpCol.append(el);
   }
   const withGas = (m) => ({ ...m, spo2: gas.state.spo2 * 100, petco2: vent.disconnected ? 0 : gas.petco2, paco2: gas.state.paco2, pao2: gas.state.pao2 });
-  function limitValue(key) { return key === 'pmax' ? vent.settings.pmax : ui.alarms[key]; }
+  const limitValue = (key) => (key === 'pmax' ? vent.settings.pmax : ui.alarms[key]);
   function updateMMP(mRaw) {
     const m = withGas(mRaw);
     const alarmByKey = {};
     for (const a of ui.activeAlarms) if (a.mmp) alarmByKey[a.mmp] = a.priority === 'high' ? 'high' : (alarmByKey[a.mmp] ?? 'medium');
     for (const [key, t] of Object.entries(mmpTiles)) {
-      const v = m[key];
       let cls = 'mmp';
       if (alarmByKey[key]) cls += ` alarm-${alarmByKey[key]}`;
       if (key === 'pplat' && m.pplatMeasured != null) cls += ' measured';
       if (key === 'autoPeep' && m.autoPeepMeasured != null) cls += ' measured';
-      t.val.textContent = t.def.d === null ? (v ?? '–') : fmt(v, t.def.d);
+      t.val.textContent = t.def.d === null ? (m[key] ?? '–') : fmt(m[key], t.def.d);
       t.el.className = cls;
-      if (t.def.limits) {
-        const [hi, lo] = t.def.limits;
-        t.lim.replaceChildren(h('span', {}, hi ? String(limitValue(hi)) : ''), h('span', {}, lo ? String(limitValue(lo)) : ''));
-      }
+      if (t.def.limits) { const [hi, lo] = t.def.limits; t.lim.replaceChildren(h('span', {}, hi ? String(limitValue(hi)) : ''), h('span', {}, lo ? String(limitValue(lo)) : '')); }
     }
     monitorRefresh?.(m);
   }
@@ -166,28 +222,24 @@ export function mountRespirator(container, ctx) {
 
   // ======================= Alarmer og meldingslinje =======================
   function evaluateAlarms() {
-    const m = vent.measurements;
-    const s = vent.settings;
+    const m = vent.measurements, s = vent.settings;
     const list = [];
     const hasBreath = m.breathType !== null;
-    if (vent.disconnected || (hasBreath && m.ppeak < m.peep + 2 && s.mode !== 'SPONT')) list.push({ id: 'disc', text: 'Frakobling / lavt trykk', priority: 'high', mmp: 'ppeak' });
-    if (m.highPressure || (m.ppeak !== null && m.ppeak >= s.pmax)) list.push({ id: 'phigh', text: 'Høyt trykk', priority: 'high', mmp: 'ppeak' });
+    if (vent.disconnected || (hasBreath && m.ppeak < m.peep + 2 && s.mode !== 'SPONT')) list.push({ id: 'disc', text: 'Frakobling på pasientsiden', priority: 'high', mmp: 'ppeak' });
+    if (m.highPressure || (m.ppeak !== null && m.ppeak >= s.pmax)) list.push({ id: 'phigh', text: 'Trykk høy', priority: 'high', mmp: 'ppeak' });
     if (hasBreath && m.expMinVol < ui.alarms.mvLow) list.push({ id: 'mvlow', text: 'ExpMinVol lav', priority: 'high', mmp: 'expMinVol' });
     if (hasBreath && m.expMinVol > ui.alarms.mvHigh) list.push({ id: 'mvhigh', text: 'ExpMinVol høy', priority: 'high', mmp: 'expMinVol' });
-    if (vent.backupActive || (vent.time - ui.lastBreathTime > ui.alarms.apnea && vent.time > ui.alarms.apnea)) list.push({ id: 'apnea', text: 'Apné', priority: 'high' });
+    if (vent.backupActive || (vent.time - ui.lastBreathTime > ui.alarms.apnea && vent.time > ui.alarms.apnea)) list.push({ id: 'apnea', text: vent.backupActive ? 'Apné-ventilasjon' : 'Apné', priority: 'high' });
     if (gas.state.spo2 * 100 < ui.alarms.spo2Low) list.push({ id: 'spo2', text: `SpO2 lav (${fmt(gas.state.spo2 * 100, 0)} %)`, priority: 'high', mmp: 'spo2' });
     if (hasBreath && !vent.disconnected && m.vte < ui.alarms.vtLow) list.push({ id: 'vtlow', text: 'Vt lav', priority: 'medium', mmp: 'vte' });
     if (hasBreath && m.vte > ui.alarms.vtHigh) list.push({ id: 'vthigh', text: 'Vt høy', priority: 'medium', mmp: 'vte' });
     if (m.pressureLimited) list.push({ id: 'plimit', text: 'Trykkbegrensning', priority: 'medium', mmp: 'ppeak' });
-    // hendelseslogg ved endring
-    const prev = new Set(ui.activeAlarms.map((a) => a.id));
-    const now = new Set(list.map((a) => a.id));
+    const prev = new Set(ui.activeAlarms.map((a) => a.id)), now = new Set(list.map((a) => a.id));
     for (const a of list) if (!prev.has(a.id)) logEvent(`Alarm: ${a.text}`, a.priority);
     for (const a of ui.activeAlarms) if (!now.has(a.id)) logEvent(`Alarm avsluttet: ${a.text}`, '');
     ui.activeAlarms = list;
     return list;
   }
-
   function renderMsgBar() {
     const list = ui.activeAlarms;
     const high = list.some((a) => a.priority === 'high');
@@ -196,13 +248,9 @@ export function mountRespirator(container, ctx) {
     clear(msgBar);
     const text = list.length ? list.map((a) => a.text).join(' · ') : (ui.o2Enrich ? `O2-anrikning: ${fmt(Math.max(0, ui.o2Enrich.until - vent.time), 0)} s igjen` : '');
     msgBar.append(h('span', { class: 'hc-msg-text' }, text));
-    if (audio.enabled && (list.length || audio.silenced)) {
-      const left = audio.silencedFor;
-      msgBar.append(button(audio.silenced ? `🔕 ${fmt(left, 0)} s` : '🔔 Audio pause', { small: true, onClick: () => { audio.silenced ? audio.unsilence() : audio.silence(120); renderMsgBar(); } }));
-    }
+    if (audio.enabled && (list.length || audio.silenced)) msgBar.append(button(audio.silenced ? `🔕 ${clock(audio.silencedFor)}` : '🔔 Audio pause', { small: true, onClick: () => { audio.silenced ? audio.unsilence() : audio.silence(120); renderMsgBar(); } }));
     side.querySelector('[data-win="alarms"]')?.classList.toggle('alarming', high);
   }
-
   function logEvent(text, priority = '') {
     ui.events.unshift({ t: vent.time, text, priority });
     if (ui.events.length > 200) ui.events.length = 200;
@@ -213,13 +261,12 @@ export function mountRespirator(container, ctx) {
   function renderTop() {
     const s = vent.settings;
     clear(modeBtn);
-    modeBtn.append(h('div', { class: 'hc-mode-name' }, MODES[s.mode].label), h('div', { class: 'hc-mode-sub' }, `Voksen · IBW ${fmt(idealBodyWeightHamilton(vent.patient.height, vent.patient.sex), 0)} kg`));
+    modeBtn.append(h('div', { class: 'hc-mode-name' }, MODES[s.mode].label), h('div', { class: 'hc-mode-sub' }, `🧍 Voksen · IBW ${fmt(idealBodyWeightHamilton(vent.patient.height, vent.patient.sex), 0)} kg`));
     renderMsgBar();
   }
   function renderClock() {
-    const t = vent.time;
-    clockBox.textContent = `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
-    clockBox.append(h('small', {}, ui.speed === 1 ? 'simulert tid' : `${ui.speed}× hastighet`));
+    const now = new Date();
+    clockBox.replaceChildren(h('span', {}, `${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}.${now.getFullYear()}`), h('span', {}, clock(vent.time)), h('small', {}, ui.speed === 1 ? 'simulert tid' : `${ui.speed}× hastighet`));
   }
 
   // ======================= Hovedkontroller nederst =======================
@@ -228,16 +275,14 @@ export function mountRespirator(container, ctx) {
     const common = [{ key: 'fio2', label: 'Oksygen', value: s.fio2, unit: '%' }, { key: 'peep', label: 'PEEP/CPAP', value: s.peep, unit: 'cmH2O' }];
     const timing = s.timingMode === 'ie' ? { key: 'ie', label: 'I:E', value: ieLabel(s.ie), unit: '' } : { key: 'ti', label: 'TI', value: s.ti.toFixed(2), unit: 's' };
     const trig = { key: 'trigger', label: s.trigger.type === 'flow' ? 'Trigger (flow)' : 'Trigger (trykk)', value: s.trigger.type === 'flow' ? s.trigger.value : `-${s.trigger.value}`, unit: s.trigger.type === 'flow' ? 'l/min' : 'cmH2O' };
+    if (s.mode === 'APVCMV') return [...common, { key: 'rate', label: 'Rate', value: s.rate, unit: 'b/min' }, { key: 'vt', label: 'Vt', value: s.vt, unit: 'ml' }, timing, { key: 'pramp', label: 'P-ramp', value: s.pramp, unit: 'ms' }, trig];
     if (s.mode === 'SCMV') return [...common, { key: 'rate', label: 'Rate', value: s.rate, unit: 'b/min' }, { key: 'vt', label: 'Vt', value: s.vt, unit: 'ml' }, timing, { key: 'tip', label: 'Pause', value: s.tip, unit: '%' }, { key: 'flowPattern', label: 'Flowmønster', value: s.flowPattern === 'decel' ? 'Desel.' : 'Firkant', unit: '' }, trig];
     if (s.mode === 'PCV') return [...common, { key: 'rate', label: 'Rate', value: s.rate, unit: 'b/min' }, { key: 'pcontrol', label: 'ΔPcontrol', value: s.pcontrol, unit: 'cmH2O' }, timing, { key: 'pramp', label: 'P-ramp', value: s.pramp, unit: 'ms' }, trig];
     return [...common, { key: 'psupport', label: 'ΔPsupport', value: s.psupport, unit: 'cmH2O' }, { key: 'pramp', label: 'P-ramp', value: s.pramp, unit: 'ms' }, { key: 'ets', label: 'ETS', value: s.ets, unit: '%' }, trig, { key: 'tiMax', label: 'TI max', value: s.tiMax, unit: 's' }];
   }
   function renderSettingsBar() {
     clear(settingsBar);
-    for (const d of settingDefs()) {
-      settingsBar.append(h('button', { type: 'button', class: 'hc-set', dataset: { key: d.key }, onClick: () => openWindow('controls', d.key) },
-        h('span', { class: 'set-label' }, d.label), h('span', { class: 'set-value' }, String(d.value)), h('span', { class: 'set-unit' }, d.unit)));
-    }
+    for (const d of settingDefs()) settingsBar.append(h('button', { type: 'button', class: 'hc-set', dataset: { key: d.key }, onClick: () => openWindow('controls', d.key) }, h('span', { class: 'set-label' }, d.label), h('span', { class: 'set-value' }, String(d.value)), h('span', { class: 'set-unit' }, d.unit)));
   }
 
   // ======================= Endring av innstillinger =======================
@@ -255,17 +300,15 @@ export function mountRespirator(container, ctx) {
     vent.setSettings(partial);
     const after = key === 'ie' ? ieLabel(value) : key === 'mode' ? MODES[value].label : value;
     if (!silent) logEvent(`${settingLabel(key)}: ${key === 'mode' ? MODES[before]?.label ?? before : before} → ${after}`);
-    updateMarkers();
-    renderSettingsBar();
-    renderTop();
+    updateMarkers(); renderSettingsBar(); renderTop();
   }
-  const PREDICTABLE = new Set(['vt', 'rate', 'peep', 'ie', 'ti', 'pcontrol', 'psupport', 'tip', 'flowPattern']);
-  function changeSetting(key, value, revert) {
+  const PREDICTABLE = new Set(['vt', 'rate', 'peep', 'ie', 'ti', 'pcontrol', 'psupport', 'tip', 'flowPattern', 'ets', 'pramp', 'pmax']);
+  function changeSetting(key, value) {
     const s = vent.settings;
     const oldValue = key === 'ie' ? s.ie : s[key];
     if (ui.task && PREDICTABLE.has(key)) {
       const q = predictionFor({ key, oldValue, newValue: value, settings: s, patient: vent.patient, focus: ui.task.task.focus });
-      if (q) { showPrediction(q, () => applySetting(key, value), revert); return; }
+      if (q) { showPrediction(q, () => applySetting(key, value), () => openWindow('controls', key)); return; }
     }
     applySetting(key, value);
   }
@@ -285,12 +328,11 @@ export function mountRespirator(container, ctx) {
     const head = h('div', { class: 'hc-window-head' });
     windowEl = h('div', { class: 'hc-window', role: 'dialog' }, head, body);
     hc.append(windowEl);
-    const title = Object.fromEntries(WINDOWS.map(([id, , label]) => [id, label]))[name];
-    head.append(h('h2', {}, title), h('button', { class: 'hc-close', type: 'button', 'aria-label': 'Lukk', onClick: closeWindow }, '✕'));
-    ({ alarms: renderAlarms, controls: renderControls, monitor: renderMonitor, graphics: renderGraphics, tools: renderTools, events: renderEvents, system: renderSystem })[name](body, focusKey === true ? null : focusKey);
+    head.append(h('h2', {}, Object.fromEntries(WINDOWS.map(([id, , label]) => [id, label]))[name]), h('button', { class: 'hc-close', type: 'button', 'aria-label': 'Lukk', onClick: closeWindow }, '✕'));
+    ({ alarms: renderAlarms, controls: renderControls, monitor: renderMonitor, graphics: renderGraphics, tools: renderTools, events: renderEvents, system: renderSystem })[name](body, head, focusKey === true ? null : focusKey);
   }
 
-  function renderAlarms(body, focusKey) {
+  function renderAlarms(body, head, focusKey) {
     const mk = (label, key, unit, min, max, step) => {
       const ctl = slider({ label, unit, min, max, step, value: key === 'pmax' ? vent.settings.pmax : ui.alarms[key], onChange: (v) => { if (key === 'pmax') applySetting('pmax', v); else { ui.alarms[key] = v; logEvent(`Alarmgrense ${label}: ${v}`); } updateMMP(vent.measurements); } });
       if (focusKey && ((focusKey === 'ppeak' && key === 'pmax') || (focusKey === 'vte' && key.startsWith('vt')) || (focusKey === 'expMinVol' && key.startsWith('mv')) || (focusKey === 'spo2' && key === 'spo2Low'))) ctl.el.classList.add('highlight');
@@ -299,79 +341,91 @@ export function mountRespirator(container, ctx) {
     body.append(h('div', { class: 'hc-section' }, 'Grenser 1'));
     mk('Trykk høy (Pmax)', 'pmax', 'cmH2O', 15, 70, 1);
     body.append(h('p', { class: 'faint', style: { fontSize: '0.82rem' } }, `Plimit = Pmax − 10 = ${vent.settings.pmax - 10} cmH2O: respiratoren begrenser levert trykk her. Ved Pmax åpnes ekspirasjonsventilen (høyprioritetsalarm).`));
-    mk('ExpMinVol lav', 'mvLow', 'L/min', 0.5, 20, 0.5);
-    mk('ExpMinVol høy', 'mvHigh', 'L/min', 2, 40, 0.5);
-    mk('Vt lav', 'vtLow', 'ml', 50, 1000, 10);
-    mk('Vt høy', 'vtHigh', 'ml', 100, 2000, 10);
+    mk('ExpMinVol lav', 'mvLow', 'l/min', 0.5, 20, 0.5); mk('ExpMinVol høy', 'mvHigh', 'l/min', 2, 40, 0.5);
+    mk('Vt lav', 'vtLow', 'ml', 50, 1000, 10); mk('Vt høy', 'vtHigh', 'ml', 100, 2000, 10);
     body.append(h('div', { class: 'hc-section' }, 'Grenser 2'));
-    mk('Apnétid', 'apnea', 's', 5, 60, 5);
-    mk('SpO2 lav', 'spo2Low', '%', 70, 99, 1);
-    body.append(h('div', { class: 'hc-section' }, 'Aktive alarmer'));
+    mk('Apnétid', 'apnea', 's', 5, 60, 5); mk('SpO2 lav', 'spo2Low', '%', 70, 99, 1);
+    body.append(h('div', { class: 'hc-section' }, 'Buffer (aktive alarmer)'));
     body.append(ui.activeAlarms.length ? h('div', { class: 'event-list' }, ...ui.activeAlarms.map((a) => h('div', { class: `ev ${a.priority}` }, h('time', {}, a.priority === 'high' ? 'HØY' : 'MIDDELS'), h('span', {}, a.text)))) : h('p', { class: 'muted' }, 'Ingen aktive alarmer.'));
     if (focusKey) windowEl.querySelector('.highlight')?.scrollIntoView({ block: 'center' });
   }
 
-  function renderControls(body, focusKey) {
+  function renderControls(body, head, focusKey) {
     const s = vent.settings;
-    const add = (key, ctl) => { if (key === focusKey) ctl.el.classList.add('highlight'); body.append(ctl.el); return ctl; };
-    const sl = (key, opts) => add(key, slider({ ...opts, onChange: (v) => changeSetting(key, v, () => {}) }));
-    body.append(h('div', { class: 'hc-section' }, `${MODES[s.mode].label} – kontroller`));
-    sl('fio2', { label: 'Oksygen', unit: '%', min: 21, max: 100, step: 1, value: s.fio2 });
-    sl('peep', { label: 'PEEP/CPAP', unit: 'cmH2O', min: 0, max: 25, step: 1, value: s.peep });
-    if (s.mode !== 'SPONT') sl('rate', { label: 'Rate', unit: 'b/min', min: 4, max: 40, step: 1, value: s.rate });
-    if (s.mode === 'SCMV') sl('vt', { label: 'Vt', unit: 'ml', min: 100, max: 1000, step: 10, value: s.vt });
-    if (s.mode === 'PCV') sl('pcontrol', { label: 'ΔPcontrol (over PEEP)', unit: 'cmH2O', min: 2, max: 50, step: 1, value: s.pcontrol });
-    if (s.mode === 'SPONT') sl('psupport', { label: 'ΔPsupport (over PEEP)', unit: 'cmH2O', min: 0, max: 40, step: 1, value: s.psupport });
-    if (s.mode !== 'SPONT') {
-      body.append(h('div', { class: 'hc-section' }, 'Tid'));
-      body.append(h('div', { class: 'row' }, h('span', { class: 'muted' }, 'Still inn via'), segmented({ ariaLabel: 'Tidsinnstilling', value: s.timingMode, options: [{ value: 'ie', label: 'I:E' }, { value: 'ti', label: 'TI' }], onChange: (v) => { applySetting('timingMode', v, { silent: true }); openWindow('controls', v); } }).el));
-      if (s.timingMode === 'ie') add('ie', select({ label: 'I:E', value: ieKey(s.ie), options: IE_OPTIONS, onChange: (v) => changeSetting('ie', IE_OPTIONS.find((o) => o.value === v).ie, () => {}) }));
-      else sl('ti', { label: 'TI', unit: 's', min: 0.3, max: 3, step: 0.05, value: s.ti });
-      if (s.mode === 'SCMV') {
-        sl('tip', { label: 'Pause (% av syklustid)', unit: '%', min: 0, max: 30, step: 5, value: s.tip });
-        add('flowPattern', segmented({ ariaLabel: 'Flowmønster', value: s.flowPattern, options: [{ value: 'square', label: 'Firkant' }, { value: 'decel', label: 'Deselererende 50 %' }], onChange: (v) => changeSetting('flowPattern', v, () => {}) }));
+    const tabs = [['basic', 'Grunn'], ['patient', 'Pasient'], ...(s.mode === 'SPONT' ? [['apnea', 'Apné']] : [])];
+    let tab = focusKey === 'height' ? 'patient' : focusKey === 'apnea' ? 'apnea' : 'basic';
+    const tabBar = h('div', { class: 'tabs' });
+    const content = h('div', {});
+    const renderTab = () => {
+      tabBar.replaceChildren(...tabs.map(([id, label]) => h('button', { type: 'button', class: id === tab ? 'active' : '', onClick: () => { tab = id; renderTab(); } }, label)));
+      clear(content);
+      const add = (key, ctl) => { if (key === focusKey) ctl.el.classList.add('highlight'); content.append(ctl.el); return ctl; };
+      const sl = (key, opts) => add(key, slider({ ...opts, onChange: (v) => changeSetting(key, v) }));
+      if (tab === 'basic') {
+        content.append(h('div', { class: 'hc-section' }, `${MODES[s.mode].label} – kontroller`));
+        sl('fio2', { label: 'Oksygen', unit: '%', min: 21, max: 100, step: 1, value: s.fio2 });
+        sl('peep', { label: 'PEEP/CPAP', unit: 'cmH2O', min: 0, max: 35, step: 1, value: s.peep });
+        if (s.mode !== 'SPONT') sl('rate', { label: 'Rate', unit: 'b/min', min: 1, max: 80, step: 1, value: s.rate });
+        if (s.mode === 'APVCMV' || s.mode === 'SCMV') sl('vt', { label: 'Vt', unit: 'ml', min: 100, max: 1000, step: 10, value: s.vt });
+        if (s.mode === 'PCV') sl('pcontrol', { label: 'ΔPcontrol (over PEEP)', unit: 'cmH2O', min: 5, max: 60, step: 1, value: s.pcontrol });
+        if (s.mode === 'SPONT') sl('psupport', { label: 'ΔPsupport (over PEEP)', unit: 'cmH2O', min: 0, max: 60, step: 1, value: s.psupport });
+        if (s.mode !== 'SPONT') {
+          content.append(h('div', { class: 'hc-section' }, 'Tid'));
+          content.append(h('div', { class: 'row' }, h('span', { class: 'muted' }, 'Still inn via'), segmented({ ariaLabel: 'Tidsinnstilling', value: s.timingMode, options: [{ value: 'ie', label: 'I:E' }, { value: 'ti', label: 'TI' }], onChange: (v) => { applySetting('timingMode', v, { silent: true }); openWindow('controls', v); } }).el));
+          if (s.timingMode === 'ie') add('ie', select({ label: 'I:E', value: ieKey(s.ie), options: IE_OPTIONS, onChange: (v) => changeSetting('ie', IE_OPTIONS.find((o) => o.value === v).ie) }));
+          else sl('ti', { label: 'TI', unit: 's', min: 0.1, max: 3, step: 0.05, value: s.ti });
+          if (s.mode === 'SCMV') {
+            sl('tip', { label: 'Pause (% av syklustid)', unit: '%', min: 0, max: 30, step: 5, value: s.tip });
+            add('flowPattern', segmented({ ariaLabel: 'Flowmønster', value: s.flowPattern, options: [{ value: 'square', label: 'Firkant' }, { value: 'decel', label: 'Deselererende 50 %' }], onChange: (v) => changeSetting('flowPattern', v) }));
+          }
+        }
+        if (s.mode !== 'SCMV') { content.append(h('div', { class: 'hc-section' }, 'Trykkstigning')); sl('pramp', { label: 'P-ramp', unit: 'ms', min: 0, max: s.mode === 'SPONT' ? 200 : 600, step: 25, value: Math.min(s.pramp, s.mode === 'SPONT' ? 200 : 600) }); }
+        content.append(h('div', { class: 'hc-section' }, 'Trigger'));
+        add('trigger', segmented({ ariaLabel: 'Triggertype', value: s.trigger.type, options: [{ value: 'flow', label: 'Flow' }, { value: 'pressure', label: 'Trykk' }], onChange: (v) => { applySetting('triggerType', v); openWindow('controls', 'trigger'); } }));
+        if (s.trigger.type === 'flow') add('trigger', slider({ label: 'Flowtrigger', unit: 'l/min', min: 0.5, max: 20, step: 0.5, value: s.trigger.value, onChange: (v) => applySetting('triggerValue', v) }));
+        else add('trigger', slider({ label: 'Trykktrigger (under PEEP)', unit: 'cmH2O', min: 0.5, max: 15, step: 0.5, value: s.trigger.value, onChange: (v) => applySetting('triggerValue', v) }));
+        if (s.mode === 'SPONT') { content.append(h('div', { class: 'hc-section' }, 'Syklus')); sl('ets', { label: 'ETS', unit: '% av toppflow', min: 5, max: 80, step: 5, value: s.ets }); sl('tiMax', { label: 'TI max', unit: 's', min: 0.5, max: 3, step: 0.1, value: s.tiMax }); }
+        content.append(h('p', { class: 'faint', style: { marginTop: '12px', fontSize: '0.85rem' } }, 'Endringer virker fra neste pust.'));
+      } else if (tab === 'patient') {
+        const p = vent.patient;
+        content.append(h('div', { class: 'hc-section' }, 'Pasient (IBW beregnes fra kjønn og høyde)'));
+        content.append(h('div', { class: 'row' }, h('span', { class: 'muted' }, 'Kjønn'), segmented({ ariaLabel: 'Kjønn', value: p.sex, options: [{ value: 'M', label: 'Mann' }, { value: 'K', label: 'Kvinne' }], onChange: (v) => { vent.setPatient({ sex: v }); renderTop(); renderTab(); } }).el));
+        content.append(slider({ label: 'Pasienthøyde', unit: 'cm', min: 30, max: 250, step: 1, value: p.height, onChange: (v) => { vent.setPatient({ height: v }); renderTop(); renderTab(); } }).el);
+        content.append(h('p', { class: 'muted' }, `IBW ${fmt(idealBodyWeightHamilton(p.height, p.sex), 1)} kg · Vt 8 ml/kg = ${fmt(8 * idealBodyWeightHamilton(p.height, p.sex), 0)} ml`));
+      } else {
+        content.append(h('div', { class: 'hc-section' }, 'Apné-backup'));
+        sl('apneaTime', { label: 'Apnétid', unit: 's', min: 5, max: 60, step: 5, value: s.apneaTime });
+        add('backupRate', slider({ label: 'Backup rate', unit: 'b/min', min: 4, max: 30, step: 1, value: s.backup.rate, onChange: (v) => applySetting('backupRate', v) }));
+        add('backupPcontrol', slider({ label: 'Backup ΔPinsp', unit: 'cmH2O', min: 5, max: 40, step: 1, value: s.backup.pcontrol, onChange: (v) => applySetting('backupPcontrol', v) }));
       }
-    }
-    if (s.mode !== 'SCMV') { body.append(h('div', { class: 'hc-section' }, 'Trykkstigning')); sl('pramp', { label: 'P-ramp', unit: 'ms', min: 0, max: 400, step: 25, value: s.pramp }); }
-    body.append(h('div', { class: 'hc-section' }, 'Trigger'));
-    add('trigger', segmented({ ariaLabel: 'Triggertype', value: s.trigger.type, options: [{ value: 'flow', label: 'Flow' }, { value: 'pressure', label: 'Trykk' }], onChange: (v) => { applySetting('triggerType', v); openWindow('controls', 'trigger'); } }));
-    if (s.trigger.type === 'flow') add('trigger', slider({ label: 'Flowtrigger', unit: 'l/min', min: 0.5, max: 15, step: 0.5, value: s.trigger.value, onChange: (v) => applySetting('triggerValue', v) }));
-    else add('trigger', slider({ label: 'Trykktrigger (under PEEP)', unit: 'cmH2O', min: 0.5, max: 10, step: 0.5, value: s.trigger.value, onChange: (v) => applySetting('triggerValue', v) }));
-    if (s.mode === 'SPONT') {
-      body.append(h('div', { class: 'hc-section' }, 'Syklus og apné-backup'));
-      sl('ets', { label: 'ETS', unit: '% av toppflow', min: 5, max: 70, step: 5, value: s.ets });
-      sl('tiMax', { label: 'TI max', unit: 's', min: 0.5, max: 3, step: 0.1, value: s.tiMax });
-      sl('apneaTime', { label: 'Apnétid (backup)', unit: 's', min: 5, max: 60, step: 5, value: s.apneaTime });
-      add('backupRate', slider({ label: 'Backup rate', unit: 'b/min', min: 4, max: 30, step: 1, value: s.backup.rate, onChange: (v) => applySetting('backupRate', v) }));
-      add('backupPcontrol', slider({ label: 'Backup ΔPinsp', unit: 'cmH2O', min: 5, max: 40, step: 1, value: s.backup.pcontrol, onChange: (v) => applySetting('backupPcontrol', v) }));
-    }
-    body.append(h('p', { class: 'faint', style: { marginTop: '12px', fontSize: '0.85rem' } }, 'Endringer virker fra neste pust.'));
-    if (focusKey) windowEl.querySelector('.highlight')?.scrollIntoView({ block: 'center' });
+      if (focusKey) content.querySelector('.highlight')?.scrollIntoView({ block: 'center' });
+    };
+    head.insertBefore(tabBar, head.lastChild);
+    body.append(content);
+    renderTab();
   }
 
   function renderMonitor(body) {
     const grid = h('div', { class: 'mon-grid' });
     const tiles = {};
-    for (const d of MMP_ALL) {
-      const val = h('div', { class: 'mmp-value' }, '–');
-      tiles[d.key] = { val, d };
-      grid.append(h('div', { class: 'mmp' }, h('div', { class: 'mmp-main' }, h('div', { class: 'mmp-label' }, d.label, h('span', { class: 'mmp-unit' }, d.unit)), val)));
-    }
+    for (const d of MMP_ALL) { const val = h('div', { class: 'mmp-value' }, '–'); tiles[d.key] = { val, d }; grid.append(h('div', { class: 'mmp' }, h('div', { class: 'mmp-main' }, h('div', { class: 'mmp-label' }, d.label, h('span', { class: 'mmp-unit' }, d.unit)), val))); }
     const extra = h('div', { class: 'muted', style: { marginTop: '10px', fontSize: '0.85rem' } });
     body.append(grid, extra);
     monitorRefresh = (m) => {
       for (const [k, t] of Object.entries(tiles)) t.val.textContent = t.d.d === null ? (m[k] ?? '–') : fmt(m[k], t.d.d);
-      extra.textContent = `Siste pust: ${({ mandatory: 'maskinstyrt', triggered: 'pasienttrigget (mandatorisk)', spont: 'spontan (trykkstøtte)', backup: 'backup' })[m.breathType] ?? '–'}${m.cycleReason ? ` · syklet av ${m.cycleReason}` : ''}. Pplat målt ved hold: ${fmt(m.pplatMeasured, 1)} · AutoPEEP målt ved hold: ${fmt(m.autoPeepMeasured, 1)}.`;
+      extra.textContent = `Siste pust: ${({ mandatory: 'maskinstyrt', triggered: 'pasienttrigget (mandatorisk)', spont: 'spontan (trykkstøtte)', backup: 'backup' })[m.breathType] ?? '–'}${m.cycleReason ? ` · syklet av ${m.cycleReason}` : ''}. Pplateau ved hold: ${fmt(m.pplatMeasured, 1)} · AutoPEEP ved hold: ${fmt(m.autoPeepMeasured, 1)}.`;
     };
     monitorRefresh(withGas(vent.measurements));
   }
 
   function renderGraphics(body) {
+    body.append(h('div', { class: 'hc-section' }, 'Oppsett (som C6: kurver + intelligente paneler eller sløyfer)'));
+    body.append(segmented({ ariaLabel: 'Oppsett', value: ui.layout, options: [{ value: 'curves', label: 'Kurver' }, { value: 'panels', label: 'Kurver + Dynamic Lung / Vent Status' }, { value: 'loops', label: 'Kurver + sløyfer' }], onChange: (v) => { ui.layout = v; applyLayout(); } }).el);
     body.append(h('div', { class: 'hc-section' }, 'Tidsskala (s)'));
     body.append(segmented({ ariaLabel: 'Tidsskala', value: String(sc.paw.sweep ?? 11), options: [{ value: '5.5', label: '5,5' }, { value: '11', label: '11' }, { value: '22', label: '22' }, { value: '33', label: '33' }], onChange: (v) => { for (const s of Object.values(sc)) { s.setSweep(Number(v)); s.sweep = Number(v); } } }).el);
     body.append(h('p', { class: 'faint', style: { fontSize: '0.85rem' } }, 'Hamilton-C6 bruker 22 s som standard for voksne; her er 11 s valgt fordi skjermen er mindre.'));
-    body.append(h('div', { class: 'hc-section' }, 'Oppsett'));
-    body.append(toggle({ label: 'Vis sløyfer (trykk/volum, volum/flow)', checked: ui.showLoops, onChange: (v) => { ui.showLoops = v; applyLoopsLayout(); } }).el);
+    body.append(h('div', { class: 'hc-section' }, 'Frys'));
+    body.append(toggle({ label: 'Frys kurvene (ventilasjonen fortsetter)', checked: ui.frozen, onChange: (v) => { ui.frozen = v; hc.classList.toggle('frozen', v); } }).el);
   }
 
   function renderTools(body) {
@@ -383,8 +437,7 @@ export function mountRespirator(container, ctx) {
       btn.addEventListener('pointerdown', start); btn.addEventListener('pointerup', stop); btn.addEventListener('pointercancel', stop); btn.addEventListener('lostpointercapture', stop);
       return btn;
     };
-    body.append(h('div', { class: 'hc-section' }, 'Manøvrer'));
-    body.append(h('div', { class: 'grid grid-2' }, mkHold('insp', 'Insp. hold (Pplateau)'), mkHold('exp', 'Eksp. hold (AutoPEEP)')), result);
+    body.append(h('div', { class: 'hc-section' }, 'Manøvrer'), h('div', { class: 'grid grid-2' }, mkHold('insp', 'Insp. hold (Pplateau)'), mkHold('exp', 'Eksp. hold (AutoPEEP)')), result);
     toolsRefresh = () => {
       const r = vent.holdResult; if (!r) return;
       clear(result);
@@ -393,9 +446,7 @@ export function mountRespirator(container, ctx) {
       else result.append(h('b', {}, `PEEP totalt: ${fmt(r.peepTotal, 1)} cmH2O → AutoPEEP ${fmt(r.autoPeep, 1)} cmH2O`), h('div', { class: 'muted' }, `Innstilt PEEP ${vent.settings.peep}.`));
     };
     body.append(h('div', { class: 'hc-section' }, 'Annet'));
-    body.append(h('div', { class: 'row' },
-      button('Manuell pust', { onClick: () => { if (vent.manualBreath()) logEvent('Manuell pust'); else toast('Vent til ekspirasjonsfasen.', { kind: 'warn' }); } }),
-      button(ui.o2Enrich ? 'Avbryt O2-anrikning' : 'O2-anrikning (100 % i 2 min)', { onClick: () => { toggleO2Enrich(); openWindow('tools', true); } })));
+    body.append(h('div', { class: 'row' }, button('Manuell pust', { onClick: () => { if (vent.manualBreath()) logEvent('Manuell pust'); else toast('Vent til ekspirasjonsfasen.', { kind: 'warn' }); } }), button(ui.o2Enrich ? 'Avbryt O2-anrikning' : 'O2-anrikning (100 % i 2 min)', { onClick: () => { toggleO2Enrich(); openWindow('tools', true); } })));
     body.append(h('div', { class: 'hc-section' }, 'Simulering'));
     body.append(h('div', { class: 'row' }, h('span', { class: 'muted' }, 'Hastighet'), segmented({ ariaLabel: 'Hastighet', value: String(ui.speed), options: [{ value: '1', label: '1×' }, { value: '2', label: '2×' }, { value: '4', label: '4×' }], onChange: (v) => { ui.speed = Number(v); renderClock(); } }).el));
   }
@@ -403,7 +454,7 @@ export function mountRespirator(container, ctx) {
 
   function renderEvents(body) {
     if (!ui.events.length) { body.append(h('p', { class: 'muted' }, 'Ingen hendelser ennå. Alarmer, innstillingsendringer og manøvrer logges her.')); return; }
-    body.append(h('div', { class: 'event-list' }, ...ui.events.map((e) => h('div', { class: `ev ${e.priority}` }, h('time', {}, `${String(Math.floor(e.t / 60)).padStart(2, '0')}:${String(Math.floor(e.t % 60)).padStart(2, '0')}`), h('span', {}, e.text)))));
+    body.append(h('div', { class: 'event-list' }, ...ui.events.map((e) => h('div', { class: `ev ${e.priority}` }, h('time', {}, clock(e.t)), h('span', {}, e.text)))));
   }
 
   function renderSystem(body) {
@@ -413,30 +464,27 @@ export function mountRespirator(container, ctx) {
     body.append(h('p', { class: 'faint', style: { fontSize: '0.85rem' } }, audio.enabled ? 'Lyd er på.' : 'Slå på lyd med «Lyd»-knappen nederst (nettleseren krever et trykk først).'));
     body.append(slider({ label: 'Volum', unit: '', min: 0, max: 1, step: 0.05, value: o.volume, onChange: (v) => setO({ volume: v }) }).el);
     body.append(h('div', { class: 'row' },
-      toggle({ label: 'Pustelyd', checked: o.breath, onChange: (v) => setO({ breath: v }) }).el,
+      toggle({ label: 'Respirator og pust', checked: o.breath, onChange: (v) => setO({ breath: v }) }).el,
+      toggle({ label: 'Pasientlyder', checked: o.patient, onChange: (v) => setO({ patient: v }) }).el,
       toggle({ label: 'Alarmer', checked: o.alarms, onChange: (v) => setO({ alarms: v }) }).el,
       toggle({ label: 'Pulstone (SpO2)', checked: o.pulse, onChange: (v) => setO({ pulse: v }) }).el));
     body.append(h('div', { class: 'hc-section' }, 'Nullstilling'));
     body.append(h('div', { class: 'row' },
       button('Nullstill innstillinger', { onClick: () => { vent.setSettings({ ...structuredClone(DEFAULT_SETTINGS), vt: startupVt(vent.patient) }); vent.reset(); logEvent('Innstillinger nullstilt'); refreshAll(); } }),
-      button('Slett lagret fremdrift', { variant: 'danger', onClick: () => { storage.remove('respirator:progress'); progress.tasks = {}; progress.situations = {}; progress.predictions = { correct: 0, total: 0 }; toast('Fremdrift slettet'); } })));
-    body.append(h('div', { class: 'hc-section' }, 'Om'));
+      button('Slett lagret fremdrift', { variant: 'danger', onClick: () => { storage.remove('respirator:progress'); progress.predictions = { correct: 0, total: 0 }; toast('Fremdrift slettet'); } })));
+    body.append(h('div', { class: 'hc-section' }, 'Info'));
     body.append(h('p', { class: 'muted', style: { fontSize: '0.9rem' } }, 'Læringsverktøy, ikke til klinisk bruk. Skjermen er lagt opp etter HAMILTON-C6s hovedskjerm (brukerhåndbok kap. 2.2.2), men er ikke en gjengivelse av programvaren. Formler og kilder: ', h('a', { href: './KILDER.md', target: '_blank' }, 'KILDER.md'), '.'));
   }
 
   // ======================= Hurtigknapper og vindusknapper =======================
   const soundBtn = h('button', { type: 'button', class: 'hc-btn', onClick: async () => {
-    if (audio.enabled) audio.disable();
-    else if (!(await audio.enable())) { toast('Nettleseren støtter ikke lyd her.', { kind: 'warn' }); return; }
-    soundBtn.classList.toggle('on', audio.enabled);
-    soundBtn.replaceChildren(h('span', { class: 'ico' }, audio.enabled ? '🔊' : '🔇'), 'Lyd');
-    renderMsgBar();
+    if (audio.enabled) audio.disable(); else if (!(await audio.enable())) { toast('Nettleseren støtter ikke lyd her.', { kind: 'warn' }); return; }
+    soundBtn.classList.toggle('on', audio.enabled); soundBtn.replaceChildren(h('span', { class: 'ico' }, audio.enabled ? '🔊' : '🔇'), 'Lyd'); renderMsgBar();
   } }, h('span', { class: 'ico' }, '🔇'), 'Lyd');
-  const freezeBtn = h('button', { type: 'button', class: 'hc-btn', onClick: () => { ui.frozen = !ui.frozen; freezeBtn.classList.toggle('on', ui.frozen); hc.classList.toggle('frozen', ui.frozen); } }, h('span', { class: 'ico' }, '❄'), 'Frys');
   const o2Btn = h('button', { type: 'button', class: 'hc-btn', onClick: () => toggleO2Enrich() }, h('span', { class: 'ico' }, 'O₂'), '100 % 2 min');
   const breathBtn = h('button', { type: 'button', class: 'hc-btn', onClick: () => { if (vent.manualBreath()) logEvent('Manuell pust'); } }, h('span', { class: 'ico' }, '💨'), 'Man. pust');
-  const runBtn = h('button', { type: 'button', class: 'hc-btn', onClick: () => { ui.running = !ui.running; runBtn.replaceChildren(h('span', { class: 'ico' }, ui.running ? '⏸' : '▶'), ui.running ? 'Pause' : 'Start'); } }, h('span', { class: 'ico' }, '⏸'), 'Pause');
-  quick.append(breathBtn, o2Btn, freezeBtn, soundBtn, runBtn);
+  const standbyBtn = h('button', { type: 'button', class: 'hc-btn', onClick: () => { ui.running = !ui.running; standbyBtn.replaceChildren(h('span', { class: 'ico' }, ui.running ? '⏻' : '▶'), ui.running ? 'Standby' : 'Start'); standbyBtn.classList.toggle('on', !ui.running); logEvent(ui.running ? 'Ventilasjon startet' : 'Standby'); } }, h('span', { class: 'ico' }, '⏻'), 'Standby');
+  quick.append(breathBtn, o2Btn, soundBtn, standbyBtn);
   for (const [id, ico, label] of WINDOWS) side.append(h('button', { type: 'button', class: 'hc-btn', dataset: { win: id }, onClick: () => openWindow(id) }, h('span', { class: 'ico' }, ico), label));
 
   function toggleO2Enrich() {
@@ -444,21 +492,15 @@ export function mountRespirator(container, ctx) {
     else { ui.o2Enrich = { until: vent.time + 120, prev: vent.settings.fio2 }; applySetting('fio2', 100, { silent: true }); logEvent('O2-anrikning: 100 % i 2 min'); o2Btn.classList.add('on'); }
     renderMsgBar();
   }
-  function applyLoopsLayout() { waves.classList.toggle('with-loops', ui.showLoops); loops.style.display = ui.showLoops ? '' : 'none'; }
 
   // ======================= Sidepanel =======================
   function renderTabs() {
     clear(sideTabs);
-    for (const [id, label] of [['patient', 'Pasient'], ['situations', 'Situasjoner'], ['tasks', 'Oppgaver']]) {
-      sideTabs.append(h('button', { type: 'button', class: ui.tab === id ? 'active' : '', onClick: () => { ui.tab = id; if (id === 'situations') ui.unread = 0; renderTabs(); renderSide(); } }, label,
-        id === 'situations' && ui.unread && ui.tab !== id ? h('span', { class: 'badge danger' }, String(ui.unread)) : null));
+    for (const [id, label] of [['patient', 'Pasient'], ['situations', 'Caser'], ['tasks', 'Oppgaver']]) {
+      sideTabs.append(h('button', { type: 'button', class: ui.tab === id ? 'active' : '', onClick: () => { ui.tab = id; if (id === 'situations') ui.unread = 0; renderTabs(); renderSide(); } }, label, id === 'situations' && ui.unread && ui.tab !== id ? h('span', { class: 'badge danger' }, String(ui.unread)) : null));
     }
   }
-  function renderSide() {
-    clear(sideBody);
-    ({ patient: renderPatientTab, situations: renderSituationsTab, tasks: renderTasksTab })[ui.tab](sideBody);
-  }
-
+  function renderSide() { clear(sideBody); ({ patient: renderPatientTab, situations: renderSituationsTab, tasks: renderTasksTab })[ui.tab](sideBody); }
   function currentVitals() {
     if (ui.situation) return ui.situation.sit.vitals({ gas: gas.state });
     return computeVitals({ hr: 78, sys: 122, dia: 68, temp: 37.1 }, null, 0, gas.state.spo2);
@@ -467,20 +509,11 @@ export function mountRespirator(container, ctx) {
     const v = currentVitals();
     const spo2 = gas.state.spo2 * 100;
     const pv = (cls, label, value, alarm = false) => h('div', { class: `pv ${cls} ${alarm ? 'alarm' : ''}` }, h('span', { class: 'pv-label' }, label), h('span', { class: 'pv-value' }, value));
-    pmon.replaceChildren(
-      pv('spo2', 'SpO2 %', fmt(spo2, 0), spo2 < ui.alarms.spo2Low),
-      pv('hr', 'Puls', String(v.hr), v.hr > 120),
-      pv('bp', 'BT', `${v.sys}/${v.dia}`, v.sys < 90),
-      pv('rf', 'RF', fmt(vent.measurements.fTotal, 0)),
-      pv('temp', 'Temp', fmt(v.temp, 1)),
-    );
+    pmon.replaceChildren(pv('spo2', 'SpO2 %', fmt(spo2, 0), spo2 < ui.alarms.spo2Low), pv('hr', 'Puls', String(v.hr), v.hr > 120), pv('bp', 'BT', `${v.sys}/${v.dia}`, v.sys < 90), pv('rf', 'RF', fmt(vent.measurements.fTotal, 0)), pv('temp', 'Temp', fmt(v.temp, 1)));
   }
 
   function renderPatientTab(body) {
-    if (ui.task || ui.situation) {
-      body.append(h('div', { class: 'placeholder' }, 'Pasienten er låst mens en oppgave eller situasjon pågår. Bruk målinger, hold-manøvrer og undersøkelser.'));
-      return;
-    }
+    if (ui.task || ui.situation) { body.append(h('div', { class: 'placeholder' }, 'Pasienten er låst mens en oppgave eller case pågår. Bruk målinger, hold-manøvrer og undersøkelser.')); return; }
     const p = vent.patient;
     body.append(h('div', { class: 'hc-section' }, 'Profil'));
     const profRow = h('div', { class: 'btn-group' });
@@ -492,92 +525,101 @@ export function mountRespirator(container, ctx) {
     const setP = (partial) => { vent.setPatient(partial); ui.profileId = 'egen'; renderTop(); refreshInfo(); };
     body.append(h('div', { class: 'hc-section' }, 'Mekanikk'));
     body.append(slider({ label: 'Compliance', unit: 'ml/cmH2O', min: 5, max: 120, step: 1, value: p.compliance, onChange: (v) => setP({ compliance: v }) }).el);
-    body.append(slider({ label: 'Resistance, inspiratorisk', unit: 'cmH2O/(L/s)', min: 2, max: 50, step: 1, value: p.resistance, onChange: (v) => setP({ resistance: v }) }).el);
-    body.append(slider({ label: 'Resistance, ekspiratorisk', unit: 'cmH2O/(L/s)', min: 2, max: 60, step: 1, value: p.resistanceExp ?? p.resistance, onChange: (v) => setP({ resistanceExp: v }) }).el);
+    body.append(slider({ label: 'Resistance, inspiratorisk', unit: 'cmH2O/(l/s)', min: 2, max: 50, step: 1, value: p.resistance, onChange: (v) => setP({ resistance: v }) }).el);
+    body.append(slider({ label: 'Resistance, ekspiratorisk', unit: 'cmH2O/(l/s)', min: 2, max: 60, step: 1, value: p.resistanceExp ?? p.resistance, onChange: (v) => setP({ resistanceExp: v }) }).el);
     body.append(h('div', { class: 'hc-section' }, 'Egen pusteinnsats'));
     body.append(slider({ label: 'Pmus', unit: 'cmH2O', min: 0, max: 25, step: 1, value: p.effort.amplitude, onChange: (v) => setP({ effort: { amplitude: v } }) }).el);
     body.append(slider({ label: 'Egenfrekvens', unit: '/min', min: 6, max: 40, step: 1, value: p.effort.rate, onChange: (v) => setP({ effort: { rate: v } }) }).el);
     body.append(h('div', { class: 'hc-section' }, 'Gassutveksling (forenklet)'));
     body.append(slider({ label: 'Shunt', unit: '%', min: 0, max: 60, step: 1, value: Math.round(gas.params.shunt * 100), onChange: (v) => { gas.setParams({ shunt: v / 100 }); ui.profileId = 'egen'; } }).el);
     body.append(slider({ label: 'Rekrutterbarhet med PEEP', unit: '', min: 0, max: 1, step: 0.1, value: gas.params.recruitability, onChange: (v) => { gas.setParams({ recruitability: v }); ui.profileId = 'egen'; } }).el);
-    body.append(h('div', { class: 'hc-section' }, 'Kroppsvekt (IBW)'));
-    body.append(slider({ label: 'Høyde', unit: 'cm', min: 140, max: 210, step: 1, value: p.height, onChange: (v) => setP({ height: v }) }).el);
-    body.append(h('div', { class: 'row' }, h('span', { class: 'muted' }, 'Kjønn'), segmented({ ariaLabel: 'Kjønn', value: p.sex, options: [{ value: 'M', label: 'Mann' }, { value: 'K', label: 'Kvinne' }], onChange: (v) => setP({ sex: v }) }).el));
+    body.append(h('p', { class: 'faint', style: { fontSize: '0.82rem' } }, 'Høyde og kjønn (IBW) settes på respiratoren under Kontroller › Pasient, som på C6.'));
     refreshInfo();
   }
   function applyProfile(id) {
     const pr = getProfile(id);
     ui.profileId = id;
     vent.setPatient(structuredClone(pr.patient));
-    gas.setParams(gasForProfile(id));
+    gas.setParams({ ...gasForProfile(id), petGap: 0.5 });
     renderTop();
   }
 
-  // ---------- Situasjoner ----------
+  // ---------- Caser (situasjoner): valg 1 av 5 på løpende bånd ----------
   function renderSituationsTab(body) {
     const S = ui.situation;
     if (S) {
-      body.append(h('div', { class: 'task-brief' }, h('h3', {}, S.def.title), h('p', {}, S.def.vignette),
-        h('p', { class: 'muted', style: { margin: 0 } }, 'Tid: ', h('span', { id: 'sit-time' }, `${fmt(Math.max(0, vent.time - S.sit.state.tStart), 0)} s`))));
-      if (S.summary) body.append(renderSituationSummary(S.summary));
-      const act = (id) => {
-        const r = S.sit.act(id, vent.time);
-        addFeed({ t: vent.time, who: 'handling', text: `${ACTIONS[id].label}: ${r.text}`, kind: r.kind }, false);
-        if (r.kind === 'skadelig') toast('Det tiltaket var skadelig.', { kind: 'danger' });
-      };
-      const undersok = Object.entries(ACTIONS).filter(([, a]) => a.kind === 'undersok');
-      const tiltak = Object.entries(ACTIONS).filter(([, a]) => a.kind === 'tiltak');
-      body.append(h('div', { class: 'hc-section' }, 'Undersøk'), h('div', { class: 'btn-group' }, ...undersok.map(([id, a]) => button(a.label, { small: true, onClick: () => act(id) }))));
-      body.append(h('div', { class: 'hc-section' }, 'Tiltak'), h('div', { class: 'btn-group' }, ...tiltak.map(([id, a]) => button(a.label, { small: true, onClick: () => act(id) }))));
-      body.append(h('div', { class: 'row', style: { margin: '10px 0' } }, button(S.summary ? 'Tilbake til listen' : 'Avslutt situasjon', { onClick: () => endSituation() })));
+      body.append(h('div', { class: 'task-brief' }, h('h3', {}, `Case ${S.index + 1}`), h('p', {}, S.def.vignette), h('p', { class: 'muted', style: { margin: 0 } }, 'Tid: ', h('span', { id: 'sit-time' }, `${fmt(Math.max(0, vent.time - S.sit.state.tStart), 0)} s`))));
+      if (S.summary) body.append(renderSituationSummary(S));
+      S.decisionEl = h('div', {});
+      body.append(S.decisionEl);
+      renderDecision();
+      body.append(h('div', { class: 'row', style: { margin: '10px 0' } }, button(S.summary ? 'Tilbake til listen' : 'Avslutt casen', { onClick: () => endSituation() })));
       body.append(h('div', { class: 'hc-section' }, 'Meldinger'), S.feedEl);
       return;
     }
-    body.append(h('p', { class: 'muted' }, 'Falske pasienter der noe skjer underveis. Følg med på respiratoren, pasientmonitoren og meldingene, undersøk pasienten og sett inn riktig tiltak. Respiratoren justerer du som vanlig.'));
-    for (const def of SITUATIONS) {
-      const pr = progress.situations[def.id];
-      body.append(h('div', { class: 'task-item' },
-        h('h3', {}, def.title, pr?.solved ? h('span', { class: 'badge ok' }, `løst${pr.bestTime != null ? ` · beste ${fmt(pr.bestTime, 0)} s` : ''}`) : pr?.attempts ? h('span', { class: 'badge' }, `${pr.attempts} forsøk`) : null),
-        h('div', { class: 'muted', style: { fontSize: '0.9rem' } }, def.vignette),
-        h('div', {}, button('Start', { variant: 'primary', small: true, onClick: () => startSituation(def) }))));
+    body.append(h('p', { class: 'muted' }, 'Falske pasienter der noe skjer underveis. Følg med på respiratoren, monitoren og meldingene. Du får valg (1 av 5) om hva du undersøker og gjør, med noen sekunders pause imellom så du rekker å observere. Står det «Juster respiratoren», gjør du det selv på skjermen.'));
+    body.append(h('div', { class: 'row', style: { marginBottom: '8px' } }, button('Tilfeldig case', { variant: 'primary', onClick: () => startSituation(Math.floor(Math.random() * SITUATIONS.length)) })));
+    SITUATIONS.forEach((def, i) => body.append(h('div', { class: 'task-item' }, h('h3', {}, `Case ${i + 1}`), h('div', { class: 'muted', style: { fontSize: '0.9rem' } }, def.vignette), h('div', {}, button('Start', { small: true, onClick: () => startSituation(i) })))));
+  }
+  function renderDecision() {
+    const S = ui.situation; if (!S?.decisionEl) return;
+    clear(S.decisionEl);
+    if (S.summary) return;
+    const d = S.sit.decision;
+    if (d) {
+      S.decisionEl.append(h('div', { class: 'decision' }, h('h3', {}, d.text),
+        h('div', { class: 'choices' }, ...d.options.map((o) => h('button', { type: 'button', class: 'choice', onClick: () => chooseOption(o.id) }, o.label))),
+        d.skippable ? h('div', { class: 'row', style: { marginTop: '8px' } }, button('Gå rett til tiltak', { small: true, onClick: () => { S.sit.skipToActions(vent.time); renderDecision(); } })) : null));
+    } else {
+      const wait = S.sit.nextDecisionIn(vent.time);
+      if (S.sit.state.status === 'active' && wait > 0) S.decisionEl.append(h('div', { class: 'decision', style: { borderColor: 'var(--border)' } }, h('span', { class: 'wait' }, `Observer pasienten og respiratoren … neste valg om ${fmt(wait, 0)} s`)));
     }
+  }
+  function chooseOption(id) {
+    const S = ui.situation; if (!S) return;
+    const r = S.sit.choose(id, vent.time);
+    if (!r) return;
+    if (r.hold) { vent.requestHold('insp'); ui.autoHoldUntil = vent.time + 4; }
+    addFeed({ t: vent.time, who: 'handling', text: `${ACTIONS[id].label}: ${r.text}`, kind: r.kind }, false);
+    if (r.kind === 'skadelig') toast('Det tiltaket var skadelig.', { kind: 'danger' });
+    if (r.kind === 'riktig') toast('Riktig tiltak.', { kind: 'ok' });
+    renderDecision();
   }
   function addFeed(msg, notify = true) {
     const S = ui.situation; if (!S) return;
     const [ico, who] = WHO[msg.who] ?? ['•', msg.who];
-    const t = `${String(Math.floor(msg.t / 60)).padStart(2, '0')}:${String(Math.floor(msg.t % 60)).padStart(2, '0')}`;
-    S.feedEl.prepend(h('div', { class: `msg ${msg.kind ?? msg.who}` }, h('span', {}, ico), h('div', {}, h('time', {}, `${t} · ${who}`), msg.text)));
+    S.feedEl.prepend(h('div', { class: `msg ${msg.kind ?? msg.who}` }, h('span', {}, ico), h('div', {}, h('time', {}, `${clock(msg.t)} · ${who}`), msg.text)));
+    if (/host/i.test(msg.text)) audio.cough();
     if (notify) {
       toast(`${ico} ${msg.text}`, { kind: msg.who === 'monitor' || msg.who === 'respirator' ? 'warn' : '', ms: 6000 });
       audio.notify();
       if (ui.tab !== 'situations') { ui.unread += 1; renderTabs(); }
     }
   }
-  function renderSituationSummary(sum) {
+  function renderSituationSummary(S) {
+    const sum = S.summary;
     return h('div', { class: `feedback ${sum.solved ? 'correct' : 'wrong'}` },
-      h('b', {}, sum.solved ? 'Situasjonen er løst. ' : 'Situasjonen ble avsluttet uløst. '),
+      h('b', {}, `${sum.solved ? 'Casen er løst' : 'Casen ble avsluttet uløst'}: ${S.def.title}. `),
       sum.timeToFix !== null ? `Tid fra hendelse til riktig tiltak: ${fmt(sum.timeToFix, 0)} s. ` : sum.solved ? 'Løst med respiratorinnstillinger. ' : '',
-      `Unødvendige eller skadelige tiltak: ${sum.wrongActions}.`,
+      `Feil valg: ${sum.wrongActions}.`,
       h('p', { style: { marginTop: '8px' } }, h('b', {}, 'Hva skjedde: '), sum.explanation));
   }
-  function startSituation(def) {
+  function startSituation(index) {
     if (ui.task) endTask();
+    const def = SITUATIONS[index];
     const patient = { ...structuredClone(getProfile(def.profileId).patient), ...structuredClone(def.patient ?? {}) };
     vent.setSettings(structuredClone(def.settings));
     vent.setPatient(patient);
-    vent.setDisconnected(false);
-    gas.setParams(def.gas ?? gasForProfile(def.profileId));
-    vent.reset();
-    vent.run(20);
+    vent.setDisconnected(false); vent.setLeak(0);
+    gas.setParams({ petGap: 0.5, ...(def.gas ?? gasForProfile(def.profileId)) });
+    vent.reset(); vent.run(20);
     ui.lastBreathTime = vent.time;
-    updateGasFromVent();
-    gas.settle();
-    const hooks = { getPatient: () => vent.patient, setPatient: (p) => vent.setPatient(p), getGas: () => ({ ...gas.params }), setGas: (g) => gas.setParams(g), setDisconnected: (v) => vent.setDisconnected(v) };
+    updateGasFromVent(); gas.settle();
+    const hooks = { getPatient: () => vent.patient, setPatient: (p) => vent.setPatient(p), getGas: () => ({ ...gas.params }), setGas: (g) => gas.setParams(g), setDisconnected: (v) => vent.setDisconnected(v), setLeak: (f) => vent.setLeak(f) };
     const sit = createSituation(def, { hooks });
     sit.start(vent.time);
-    ui.situation = { sit, def, feedEl: h('div', { class: 'feed' }), summary: null };
-    ui.running = true;
-    ui.events = [];
+    ui.situation = { sit, def, index, feedEl: h('div', { class: 'feed' }), summary: null, decisionEl: null };
+    ui.running = true; ui.events = [];
     refreshAll();
     ui.tab = 'situations'; ui.unread = 0; renderTabs(); renderSide();
     addFeed({ t: vent.time, who: 'kollega', text: 'Pasienten er klar. Følg med.' }, false);
@@ -585,23 +627,17 @@ export function mountRespirator(container, ctx) {
   function finishSituation() {
     const S = ui.situation; if (!S || S.summary) return;
     S.summary = S.sit.summary();
-    const pr = progress.situations[S.def.id] ?? { solved: false, attempts: 0, bestTime: null };
-    pr.attempts += 1;
-    if (S.summary.solved) { pr.solved = true; if (S.summary.timeToFix !== null && (pr.bestTime === null || S.summary.timeToFix < pr.bestTime)) pr.bestTime = S.summary.timeToFix; }
-    progress.situations[S.def.id] = pr;
-    saveProgress();
-    toast(S.summary.solved ? 'Situasjonen er løst!' : 'Situasjonen er avsluttet.', { kind: S.summary.solved ? 'ok' : 'warn' });
+    toast(S.summary.solved ? 'Casen er løst!' : 'Casen er avsluttet.', { kind: S.summary.solved ? 'ok' : 'warn' });
     if (ui.tab === 'situations') renderSide();
   }
   function endSituation() {
     const S = ui.situation; if (!S) return;
     if (!S.summary) finishSituation();
     S.sit.end();
-    vent.setDisconnected(false);
+    vent.setDisconnected(false); vent.setLeak(0); gas.setParams({ petGap: 0.5 });
     ui.situation = null;
     applyProfile(ui.profileId === 'egen' ? 'normal' : ui.profileId);
-    refreshAll();
-    renderSide();
+    refreshAll(); renderSide();
   }
 
   // ---------- Oppgaver ----------
@@ -614,50 +650,32 @@ export function mountRespirator(container, ctx) {
         body.append(h('div', { class: 'choices' }, ...T.task.question.options.map((o) => h('button', { type: 'button', class: `choice ${T.answer === o.id ? 'selected' : ''}`, onClick: () => { T.answer = o.id; renderSide(); } }, o.label))));
       }
       body.append(h('div', { class: 'row', style: { margin: '12px 0' } }, button('Sjekk oppgaven', { variant: 'primary', onClick: () => checkTask() }), button('Avslutt oppgave', { onClick: () => endTask() })));
-      if (T.result) {
-        body.append(h('div', { class: `feedback ${T.result.ok ? 'correct' : 'wrong'}` }, h('b', {}, T.result.ok ? 'Oppgaven er løst!' : 'Ikke helt ennå.'),
-          h('div', { class: 'crit', style: { marginTop: '8px' } }, ...T.result.items.map((i) => h('div', { class: `crit-item ${i.ok ? 'ok' : 'fail'}` }, h('span', {}, i.ok ? '✓' : '✗'), h('div', {}, h('div', {}, i.label), h('small', {}, i.detail)))))));
-      }
+      if (T.result) body.append(h('div', { class: `feedback ${T.result.ok ? 'correct' : 'wrong'}` }, h('b', {}, T.result.ok ? 'Oppgaven er løst!' : 'Ikke helt ennå.'), h('div', { class: 'crit', style: { marginTop: '8px' } }, ...T.result.items.map((i) => h('div', { class: `crit-item ${i.ok ? 'ok' : 'fail'}` }, h('span', {}, i.ok ? '✓' : '✗'), h('div', {}, h('div', {}, i.label), h('small', {}, i.detail)))))));
       body.append(h('p', { class: 'faint', style: { marginTop: '12px', fontSize: '0.85rem' } }, `Forutsigelser: ${progress.predictions.correct} av ${progress.predictions.total} riktige.`));
       return;
     }
     body.append(h('p', { class: 'muted' }, 'Velg en oppgave. Underveis må du forutsi hva som skjer før hver endring du gjør.'));
-    for (const t of TASKS) {
-      const pr = progress.tasks[t.id];
-      body.append(h('div', { class: 'task-item' },
-        h('h3', {}, t.title, pr?.completed ? h('span', { class: 'badge ok' }, 'løst') : pr?.attempts ? h('span', { class: 'badge' }, `${pr.attempts} forsøk`) : null),
-        h('div', { class: 'muted', style: { fontSize: '0.9rem' } }, t.goal),
-        h('div', {}, button('Start', { variant: 'primary', small: true, onClick: () => startTask(t) }))));
+    for (const cat of CATEGORIES) {
+      body.append(h('div', { class: 'cat-head' }, cat.name));
+      for (const t of TASKS.filter((x) => x.cat === cat.id)) body.append(h('div', { class: 'task-item' }, h('h3', {}, t.title), h('div', { class: 'muted', style: { fontSize: '0.88rem' } }, t.goal), h('div', {}, button('Start', { small: true, onClick: () => startTask(t) }))));
     }
-    body.append(h('p', { class: 'faint', style: { marginTop: '12px', fontSize: '0.85rem' } }, `Forutsigelser så langt: ${progress.predictions.correct} av ${progress.predictions.total} riktige.`));
   }
   function startTask(task) {
     if (ui.situation) endSituation();
     const setup = taskSetup(task);
     ui.task = { task, hidden: setup.hidden, answer: null, holdDone: false, result: null };
-    vent.setSettings(setup.settings);
-    vent.setPatient(setup.patient);
-    gas.setParams(gasForProfile(task.profileId));
-    vent.reset();
+    vent.setSettings(setup.settings); vent.setPatient(setup.patient); vent.setDisconnected(false); vent.setLeak(0);
+    gas.setParams({ petGap: 0.5, ...setup.gas });
+    vent.reset(); vent.run(15); ui.lastBreathTime = vent.time; updateGasFromVent(); gas.settle();
     ui.running = true;
     refreshAll();
     ui.tab = 'tasks'; renderTabs(); renderSide();
   }
-  function endTask() {
-    ui.task = null;
-    applyProfile(ui.profileId === 'egen' ? 'normal' : ui.profileId);
-    refreshAll();
-    renderSide();
-  }
+  function endTask() { ui.task = null; applyProfile(ui.profileId === 'egen' ? 'normal' : ui.profileId); refreshAll(); renderSide(); }
   function checkTask() {
     const T = ui.task; if (!T) return;
     if (!vent.lastBreath) { toast('Vent til respiratoren har levert noen pust.', { kind: 'warn' }); return; }
-    T.result = evaluateTask(T.task, { m: vent.measurements, hidden: T.hidden, answer: T.answer, holdDone: T.holdDone });
-    const pr = progress.tasks[T.task.id] ?? { completed: false, attempts: 0 };
-    pr.attempts += 1;
-    if (T.result.ok) pr.completed = true;
-    progress.tasks[T.task.id] = pr;
-    saveProgress();
+    T.result = evaluateTask(T.task, { m: vent.measurements, gas: gas.state, settings: vent.settings, alarms: ui.alarms, hidden: T.hidden, answer: T.answer, holdDone: T.holdDone });
     renderSide();
     toast(T.result.ok ? 'Riktig – oppgaven er løst!' : 'Se tilbakemeldingen per kriterium.', { kind: T.result.ok ? 'ok' : 'warn' });
   }
@@ -667,9 +685,9 @@ export function mountRespirator(container, ctx) {
   function openModal(content) { closeModal(); modalEl = h('div', { class: 'hc-modal-backdrop' }, h('div', { class: 'hc-modal', role: 'dialog' }, ...content)); hc.append(modalEl); }
   function closeModal() { modalEl?.remove(); modalEl = null; }
   function openModeModal() {
-    const opts = Object.values(MODES).map((m) => h('button', { type: 'button', class: `choice ${vent.settings.mode === m.id ? 'selected' : ''}`, onClick: () => { closeModal(); applySetting('mode', m.id); } },
-      h('div', { class: 'mode-option' }, h('b', {}, m.label), h('small', {}, m.description))));
-    openModal([h('h3', {}, 'Modus'), h('div', { class: 'choices' }, ...opts), h('div', { class: 'row', style: { marginTop: '12px' } }, button('Avbryt', { onClick: closeModal }))]);
+    const opts = [MODES.APVCMV, MODES.PCV, MODES.SPONT, MODES.SCMV].map((m) => h('button', { type: 'button', class: `choice ${vent.settings.mode === m.id ? 'selected' : ''}`, onClick: () => { closeModal(); applySetting('mode', m.id); openWindow('controls', true); } }, h('div', { class: 'mode-option' }, h('b', {}, m.label), h('small', {}, m.description))));
+    const others = ['SIMV+', 'PSIMV+', 'DuoPAP', 'APRV', 'ASV', 'NIV', 'NIV-ST', 'HiFlowO2'].map((m) => h('button', { type: 'button', class: 'choice disabled', disabled: true }, h('div', { class: 'mode-option' }, h('b', {}, m), h('small', {}, 'Finnes på C6, ikke i simulatoren ennå'))));
+    openModal([h('h3', {}, 'Modus'), h('div', { class: 'choices mode-list' }, ...opts, ...others), h('div', { class: 'row', style: { marginTop: '12px' } }, button('Avbryt', { onClick: closeModal }))]);
   }
   function showPrediction(q, onApply, onCancel) {
     const mm = MEASURES[q.measure];
@@ -683,8 +701,7 @@ export function mountRespirator(container, ctx) {
         choices.querySelectorAll('.choice').forEach((b) => { b.disabled = true; b.classList.toggle('correct', b.dataset.id === q.expected); });
         e.currentTarget.classList.add(correct ? 'correct' : 'wrong');
         clear(fb);
-        fb.append(h('div', { class: `feedback ${correct ? 'correct' : 'wrong'}` }, h('b', {}, correct ? 'Riktig. ' : `Ikke riktig – ${mm.label} ${q.expected === 'opp' ? 'øker' : q.expected === 'ned' ? 'synker' : 'er omtrent uendret'}. `),
-          `Simulert steady state: ${mm.label} ${fmt(q.baseValue, mm.decimals)} → ${fmt(q.expectedValue, mm.decimals)} ${mm.unit}.`, h('p', { style: { marginTop: '6px' } }, q.why)));
+        fb.append(h('div', { class: `feedback ${correct ? 'correct' : 'wrong'}` }, h('b', {}, correct ? 'Riktig. ' : `Ikke riktig – ${mm.label} ${q.expected === 'opp' ? 'øker' : q.expected === 'ned' ? 'synker' : 'er omtrent uendret'}. `), `Simulert steady state: ${mm.label} ${fmt(q.baseValue, mm.decimals)} → ${fmt(q.expectedValue, mm.decimals)} ${mm.unit}.`, h('p', { style: { marginTop: '6px' } }, q.why)));
         clear(actions);
         actions.append(button('Utfør endringen og se på kurvene', { variant: 'primary', onClick: () => { closeModal(); onApply(); } }));
       } }, o.label));
@@ -693,7 +710,9 @@ export function mountRespirator(container, ctx) {
   }
 
   // ======================= Simuleringsløkke =======================
+  let lastSample = null;
   function onSample(s) {
+    lastSample = s;
     if (!ui.frozen) {
       sc.paw.push(s.t, s.paw); sc.flow.push(s.t, s.flow * 60); sc.vol.push(s.t, s.volume);
       if (vent.breath !== loopBreathRef) { loopBreathRef = vent.breath; loopPrev = loopCur; loopCur = { pv: [], fv: [] }; }
@@ -704,19 +723,24 @@ export function mountRespirator(container, ctx) {
       const r = vent.holdResult;
       logEvent(r.type === 'insp' ? `Insp. hold: Pplateau ${fmt(r.pplat, 1)}` : `Eksp. hold: AutoPEEP ${fmt(r.autoPeep, 1)}`);
       if (ui.task && r.type === ui.task.task.requireHold) ui.task.holdDone = true;
+      if (ui.situation && r.type === 'insp') addFeed({ t: vent.time, who: 'respirator', text: `Inspiratorisk hold: Pplateau ${fmt(r.pplat, 1)} cmH2O (Ppeak ${fmt(vent.measurements.ppeak, 1)}).` }, false);
       toolsRefresh?.();
     }
   }
   function updateGasFromVent() {
     const m = vent.measurements;
     const stale = vent.time - ui.lastBreathTime > 12;
-    gas.setVentilation({
-      vtMl: vent.disconnected || stale ? 0 : (m.vte ?? 0), rate: stale ? 0 : (m.fTotal ?? 0),
-      fio2: vent.settings.fio2 / 100, peep: vent.disconnected ? 0 : (m.peepTotal ?? vent.settings.peep),
-      ibwKg: m.ibw ?? idealBodyWeightHamilton(vent.patient.height, vent.patient.sex),
-    });
+    gas.setVentilation({ vtMl: vent.disconnected || stale ? 0 : (m.vte ?? 0), rate: stale ? 0 : (m.fTotal ?? 0), fio2: vent.settings.fio2 / 100, peep: vent.disconnected ? 0 : (m.peepTotal ?? vent.settings.peep), ibwKg: m.ibw ?? idealBodyWeightHamilton(vent.patient.height, vent.patient.sex) });
   }
   const offBreath = vent.onBreath((m) => { ui.lastBreathTime = vent.time; updateGasFromVent(); autoRange(m); evaluateAlarms(); updateMMP(m); renderMsgBar(); });
+  function patientSoundLevels() {
+    const p = vent.patient;
+    const S = ui.situation;
+    const f = S ? S.sit.state.factor : 0;
+    const snd = S?.sit.variant.sounds ?? {};
+    const wheezeMech = Math.min(1, Math.max(0, ((p.resistanceExp ?? p.resistance) / Math.max(1, p.resistance) - 1.2) / 1.2));
+    return { wheeze: Math.max(wheezeMech * 0.6, (snd.wheeze ?? 0) * f), secretions: (snd.secretions ?? 0) * f };
+  }
 
   let lastClockSec = -1;
   function frame(now) {
@@ -729,10 +753,12 @@ export function mountRespirator(container, ctx) {
       while (ui.acc >= dt && n < 400) { onSample(vent.step()); ui.acc -= dt; n++; }
       if (n >= 400) ui.acc = 0;
       gas.step(n * dt);
-      audio.setBreath(vent.disconnected ? 0 : vent.lung.state.flow);
-    } else audio.setBreath(0);
+      audio.setBreath(vent.disconnected ? 0 : vent.lung.state.flow, true);
+    } else audio.setBreath(0, false);
     for (const s of Object.values(sc)) s.draw();
-    if (ui.showLoops) { pvLoop.setData(loopCur.pv, loopPrev.pv); pvLoop.draw(); fvLoop.setData(loopCur.fv, loopPrev.fv); fvLoop.draw(); }
+    if (ui.layout === 'loops') { pvLoop.setData(loopCur.pv, loopPrev.pv); pvLoop.draw(); fvLoop.setData(loopCur.fv, loopPrev.fv); fvLoop.draw(); }
+    if (ui.layout === 'panels') drawDynamicLung(lastSample);
+    if (ui.autoHoldUntil !== null && vent.time >= ui.autoHoldUntil) { vent.releaseHold(); ui.autoHoldUntil = null; }
     const sec = Math.floor(vent.time);
     if (sec !== lastClockSec) {
       lastClockSec = sec;
@@ -741,12 +767,17 @@ export function mountRespirator(container, ctx) {
       if (vent.time - ui.lastBreathTime > 12 || vent.disconnected) updateGasFromVent();
       if (ui.o2Enrich && vent.time >= ui.o2Enrich.until) { applySetting('fio2', ui.o2Enrich.prev, { silent: true }); ui.o2Enrich = null; o2Btn.classList.remove('on'); logEvent('O2-anrikning ferdig'); }
       evaluateAlarms(); updateMMP(vent.measurements); renderMsgBar(); renderMonitorPanel();
+      if (ui.layout === 'panels') drawVentStatus();
       audio.setPulse(gas.state.spo2, currentVitals().hr);
+      audio.setPatientSounds(patientSoundLevels());
       if (ui.situation && !ui.situation.summary) {
         const S = ui.situation;
+        const hadDecision = !!S.sit.decision;
         const status = S.sit.tick(vent.time, { m: vent.measurements, gas: gas.state, settings: vent.settings, pmax: vent.settings.pmax, disconnected: vent.disconnected });
         for (const msg of S.sit.drain()) addFeed(msg);
         const el = document.getElementById('sit-time'); if (el) el.textContent = `${fmt(Math.max(0, vent.time - S.sit.state.tStart), 0)} s`;
+        if (!!S.sit.decision !== hadDecision || !S.sit.decision) renderDecision();
+        if (S.sit.decision && !hadDecision) { audio.notify(); if (ui.tab !== 'situations') { ui.unread += 1; renderTabs(); } }
         if (status === 'resolved') finishSituation();
       }
     }
@@ -768,18 +799,14 @@ export function mountRespirator(container, ctx) {
     for (const s of Object.values(sc)) s.clear();
   }
 
-  applyLoopsLayout();
-  refreshAll();
-  renderTabs(); renderSide();
+  applyLayout(); refreshAll(); renderTabs(); renderSide();
   ui.raf = requestAnimationFrame(frame);
 
   return () => {
     cancelAnimationFrame(ui.raf);
-    audio.destroy();
-    offBreath();
+    audio.destroy(); offBreath();
     for (const s of Object.values(sc)) s.destroy();
     pvLoop.destroy(); fvLoop.destroy();
-    closeModal(); closeWindow();
-    root.remove();
+    closeModal(); closeWindow(); root.remove();
   };
 }

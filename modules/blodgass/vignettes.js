@@ -43,10 +43,82 @@ export const CAUSES = {
   cirrhose: 'Levercirrhose (hyperventilasjon)',
   respirator: 'Hyperventilasjon på respirator',
   hypovolemi: 'Hypovolemi (kontraksjonsalkalose)',
+  metformin: 'Metformin-assosiert laktacidose',
+  co: 'Karbonmonoksidforgiftning',
+  lungeodem: 'Kardialt lungeødem',
+  gbs: 'Guillain-Barré (respirasjonsmuskelsvikt)',
+  ohs: 'Obesitas-hypoventilasjonssyndrom',
+  posthyperkapni: 'Posthyperkapnisk metabolsk alkalose',
+  steroid: 'Steroider / mineralkortikoid-effekt',
+  krampe: 'Generalisert krampeanfall (laktat)',
+  blodning: 'Hemoragisk sjokk',
+  feber: 'Feber / tidlig sepsis (hyperventilasjon)',
+  normal: 'Ingen syre–base-forstyrrelse',
+  sedasjon: 'Dyp sedasjon / anestesi (hypoventilasjon)',
 };
 
 export const SCENARIOS = [
   // ---------- Nivå 1: enkle ----------
+  {
+    id: 'normal', age: [20, 70], level: 1, primary: 'normal', lung: 'normal', fio2: [0.21],
+    labs: { lactate: [0.6, 1.4] },
+    text: '{Kjonn}, {alder} år, tatt arteriell blodgass preoperativt før en elektiv operasjon. Frisk, ingen faste medisiner.',
+    causes: ['normal'], distractors: ['angst', 'dka', 'kols', 'oppkast'],
+  },
+  {
+    id: 'metformin', age: [55, 85], level: 1, primary: 'met-acidose', agType: 'hoy', severity: [6, 13], lung: 'lett', fio2: [0.21, 0.28],
+    labs: { lactate: [9, 16], k: [4.8, 5.8], glucose: [6, 12], albumin: [30, 38] },
+    text: '{Kjonn}, {alder} år, diabetes type 2 på metformin. Gastroenteritt i tre dager, drukket lite. Nå somnolent med lavt blodtrykk og kreatinin tre ganger normalverdi.',
+    causes: ['metformin', 'uremi'], distractors: ['dka', 'oppkast', 'opioid', 'angst'],
+  },
+  {
+    id: 'blodning', age: [18, 75], level: 1, primary: 'met-acidose', agType: 'hoy', severity: [10, 16], lung: 'lett', fio2: [0.21, 0.35, 0.5],
+    labs: { lactate: [5, 10], k: [3.6, 4.4], glucose: [7, 12] },
+    text: '{Kjonn}, {alder} år, traume med bekkenbrudd. Blodtrykk 75/40, puls 135, kald perifert. Har fått 1 liter krystalloid.',
+    causes: ['blodning', 'sepsis'], distractors: ['dka', 'opioid', 'diare', 'angst'],
+  },
+  {
+    id: 'krampe', age: [18, 60], level: 1, primary: 'met-acidose', agType: 'hoy', severity: [10, 16], lung: 'normal', fio2: [0.21],
+    labs: { lactate: [6, 12], k: [4.2, 5.2], glucose: [6, 10] },
+    text: '{Kjonn}, {alder} år, kjent epilepsi, hadde et generalisert krampeanfall for ti minutter siden. Nå postiktal, blodgassen er tatt rett etter anfallet.',
+    causes: ['krampe'], distractors: ['dka', 'sepsis', 'opioid', 'salisylat'],
+  },
+  {
+    id: 'co', age: [20, 70], level: 1, primary: 'met-acidose', agType: 'hoy', severity: [11, 17], lung: 'normal', fio2: [1.0],
+    labs: { lactate: [4, 8], k: [3.8, 4.6] },
+    text: '{Kjonn}, {alder} år, funnet bevisstløs i en garasje med bilmotoren i gang. Får 100 % oksygen på maske. SpO2 viser 99 %, men huden er påfallende rosa.',
+    causes: ['co', 'sepsis'], distractors: ['dka', 'opioid', 'angst', 'diare'],
+  },
+  {
+    id: 'gbs', age: [20, 70], level: 1, primary: 'resp-acidose', chronic: false, severity: [7.5, 9.5], lung: 'lett', fio2: [0.21, 0.28],
+    labs: { lactate: [0.8, 1.6] },
+    text: '{Kjonn}, {alder} år, innlagt med stigende lammelser i beina etter en mageinfeksjon. Nå svak hoste, snakker i korte setninger. Vitalkapasitet målt til 12 ml/kg.',
+    causes: ['gbs', 'nevromusk'], distractors: ['opioid', 'kolsKronisk', 'angst', 'astma'],
+  },
+  {
+    id: 'sedasjon', age: [25, 85], level: 1, primary: 'resp-acidose', chronic: false, severity: [7.5, 10], lung: 'normal', fio2: [0.21, 0.28],
+    labs: { lactate: [0.8, 1.6] },
+    text: '{Kjonn}, {alder} år, fikk midazolam og morfin før en prosedyre på intensiv. Nå dypt sedert, respirasjonsfrekvens 7, SpO2 91 % på nesekateter.',
+    causes: ['sedasjon', 'opioid'], distractors: ['kolsKronisk', 'angst', 'le', 'dka'],
+  },
+  {
+    id: 'lungeodem', age: [55, 90], level: 1, primary: 'resp-alkalose', chronic: false, severity: [3.2, 4.2], lung: 'alvorlig', fio2: [0.35, 0.6, 0.8],
+    labs: { lactate: [1.5, 3.5], k: [3.6, 4.6] },
+    text: '{Kjonn}, {alder} år, kjent hjertesvikt. Våknet med akutt tungpust, sitter oppreist, rosa skummende ekspektorat, fuktige knatrelyder over begge lunger. CPAP er startet.',
+    causes: ['lungeodem'], distractors: ['le', 'angst', 'astma', 'opioid'],
+  },
+  {
+    id: 'feber', age: [18, 85], level: 1, primary: 'resp-alkalose', chronic: false, severity: [3.4, 4.3], lung: 'lett', fio2: [0.21],
+    labs: { lactate: [1.2, 2.4], k: [3.5, 4.3] },
+    text: '{Kjonn}, {alder} år, feber 39,8, frostanfall og respirasjonsfrekvens 28. Blodtrykket er normalt. Mistenkt pneumoni, blodgass tatt i mottak.',
+    causes: ['feber', 'pneumoni'], distractors: ['angst', 'dka', 'opioid', 'oppkast'],
+  },
+  {
+    id: 'astma-tidlig', age: [16, 50], level: 1, primary: 'resp-alkalose', chronic: false, severity: [3.4, 4.2], lung: 'moderat', fio2: [0.21, 0.28],
+    labs: { lactate: [1.0, 2.5] },
+    text: '{Kjonn}, {alder} år, astmaanfall som startet for en time siden. Pipelyder, respirasjonsfrekvens 30, snakker i setninger. Dette er den første blodgassen.',
+    causes: ['astma'], distractors: ['angst', 'le', 'opioid', 'kolsKronisk'],
+  },
   {
     id: 'sepsis-laktat', age: [35, 88], level: 1, primary: 'met-acidose', agType: 'hoy', severity: [10, 17], lung: 'lett', fio2: [0.21, 0.28, 0.35],
     labs: { lactate: [4, 9], albumin: [26, 34], k: [3.8, 4.8] },
@@ -144,6 +216,24 @@ export const SCENARIOS = [
     text: '{Kjonn}, {alder} år, utredes for nyrestein og muskelsvakhet. Ingen diaré. Urin-pH 6,5.',
     causes: ['rta'], distractors: ['diare', 'dka', 'uremi', 'sepsis'],
   },
+  {
+    id: 'ohs', age: [40, 75], level: 2, primary: 'resp-acidose', chronic: true, severity: [7.0, 8.5], lung: 'lett', fio2: [0.21, 0.24],
+    labs: { lactate: [0.8, 1.6], k: [3.8, 4.6] },
+    text: '{Kjonn}, {alder} år, BMI 48, søvnapné og dagtretthet. Blodgass tatt på dagtid på poliklinikken, pasienten er våken og i vanlig form.',
+    causes: ['ohs'], distractors: ['opioid', 'oppkast', 'kolsKronisk', 'nevromusk'],
+  },
+  {
+    id: 'steroid', age: [30, 75], level: 2, primary: 'met-alkalose', severity: [32, 38], lung: 'normal', fio2: [0.21],
+    labs: { k: [2.6, 3.2], lactate: [0.8, 1.6], glucose: [7, 12] },
+    text: '{Kjonn}, {alder} år, står på høydose prednisolon og furosemid for en inflammatorisk sykdom. Innlagt for muskelsvakhet. Ikke kastet opp.',
+    causes: ['steroid', 'diuretika'], distractors: ['oppkast', 'diare', 'kols', 'respirator'],
+  },
+  {
+    id: 'diare-kronisk', age: [25, 70], level: 2, primary: 'met-acidose', agType: 'normal', severity: [15, 19], lung: 'normal', fio2: [0.21],
+    labs: { k: [2.8, 3.4], lactate: [0.8, 1.6], albumin: [28, 36] },
+    text: '{Kjonn}, {alder} år, ulcerøs kolitt med 8–10 avføringer daglig i flere uker. Til poliklinisk kontroll, lett dehydrert.',
+    causes: ['diare'], distractors: ['rta', 'dka', 'uremi', 'sepsis'],
+  },
   // ---------- Nivå 3: blandede ----------
   {
     id: 'salisylat', age: [16, 70], level: 3, primary: 'met-acidose', agType: 'hoy', secondary: 'resp-alkalose', severity: [12, 18], lung: 'normal', fio2: [0.21],
@@ -180,6 +270,18 @@ export const SCENARIOS = [
     labs: { k: [2.8, 3.4], lactate: [0.8, 1.8], albumin: [24, 32] },
     text: '{Kjonn}, {alder} år, intubert etter bukkirurgi, ventileres med frekvens 22 og Vt 8 ml/kg. Ventrikkelsonden har gitt 2 liter aspirat i døgnet.',
     causes: ['respirator', 'oppkast'], distractors: ['sepsis', 'diare', 'opioid', 'dka'],
+  },
+  {
+    id: 'posthyperkapni', age: [55, 85], level: 3, primary: 'met-alkalose', severity: [34, 42], lung: 'moderat', fio2: [0.3, 0.4],
+    labs: { k: [2.9, 3.5], lactate: [0.8, 1.6] },
+    text: '{Kjonn}, {alder} år, KOLS med kronisk hyperkapni, intubert for to døgn siden for pneumoni. Respiratoren har ventilert henne ned til normal PaCO2 i natt. Blodgass tatt om morgenen.',
+    causes: ['posthyperkapni', 'respirator'], distractors: ['oppkast', 'diuretika', 'dka', 'sepsis'],
+  },
+  {
+    id: 'kols-akutt-pa-kronisk', age: [58, 88], level: 3, primary: 'resp-acidose', chronic: true, severity: [9.0, 11.5], lung: 'moderat', fio2: [0.28, 0.35],
+    labs: { lactate: [1.0, 2.5] },
+    text: '{Kjonn}, {alder} år, KOLS med hjemmeoksygen og kjent kronisk hyperkapni (vanlig PaCO2 rundt 7,5). Nå eksaserbasjon, somnolent, respirasjonsfrekvens 32. Blodgassen viser høyere PaCO2 enn vanlig.',
+    causes: ['kols', 'kolsKronisk'], distractors: ['opioid', 'dka', 'angst', 'oppkast'],
   },
   {
     id: 'cirrhose-sepsis', age: [45, 75], level: 3, primary: 'met-acidose', agType: 'hoy', secondary: 'resp-alkalose', severity: [13, 19], lung: 'lett', fio2: [0.21, 0.28],

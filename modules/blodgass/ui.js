@@ -172,7 +172,7 @@ export function mountBlodgass(container, ctx) {
       {
         title: 'Primær forstyrrelse',
         render(body, api) {
-          const opts = Object.entries(PRIMARY_LABELS).filter(([id]) => id !== 'normal').map(([id, label]) => ({ id, label }));
+          const opts = Object.entries(PRIMARY_LABELS).map(([id, label]) => ({ id, label }));
           const ch = choices(opts);
           answerBlock(body, api, { inputs: [h('p', { class: 'hint' }, 'Hvilken verdi forklarer pH-avviket: PaCO2 (respiratorisk) eller HCO3 (metabolsk)?'), ch.el], evaluate: () => {
             const a = ch.get(); if (!a) return null;

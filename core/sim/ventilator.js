@@ -23,13 +23,14 @@ import {
 } from '../physiology/respiratory.js';
 
 export const MODES = {
-  SCMV: { id: 'SCMV', label: '(S)CMV', description: 'Volumkontroll, synkronisert' },
-  PCV: { id: 'PCV', label: 'PCV+', description: 'Trykkontroll' },
-  SPONT: { id: 'SPONT', label: 'SPONT', description: 'Trykkstøtte (spontan)' },
+  APVCMV: { id: 'APVCMV', label: '(S)CMV+', description: 'Volummål med adaptiv trykkontroll (APVcmv): trykket justeres pust for pust for å nå innstilt Vt' },
+  PCV: { id: 'PCV', label: 'PCV+', description: 'Trykkontroll: ΔPcontrol over PEEP, volumet følger lungen' },
+  SPONT: { id: 'SPONT', label: 'SPONT', description: 'Spontan pusting med trykkstøtte (ΔPsupport), apné-backup' },
+  SCMV: { id: 'SCMV', label: '(S)CMV', description: 'Flowstyrt volumkontroll (finnes ikke på HAMILTON-C1; beholdt for undervisning)' },
 };
 
 export const DEFAULT_SETTINGS = {
-  mode: 'SCMV',
+  mode: 'APVCMV',
   vt: 500,            // ml
   rate: 15,           // /min
   peep: 5,            // cmH2O
@@ -91,6 +92,9 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
   let lastBreathStart = 0;
   const hold = { requested: null, active: null, start: 0, released: false };
   let disconnected = false;
+  let leak = 0; // andel av inspirert volum som lekker (cuff/krets): VTE = VTI·(1 − leak)
+  let apvPinsp = 15; // adaptiv ΔPinsp (over PEEP) i APVcmv, justeres pust for pust
+  let apvLimited = false; // APV ville gått høyere enn Plimit tillater
   // Ved frakobling står luftveien åpen mot atmosfæren uansett hva respiratoren gjør.
   const openLung = {
     stepFlow: (d, f, pm) => lung.stepPressure(d, 0, pm),
@@ -108,7 +112,7 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
     vti: null, vte: null, expMinVol: null, fTotal: null, fSpont: null,
     cstat: null, rinsp: null, rcexp: null, drivingPressure: null,
     ti: null, te: null, ieText: null, vtPerKg: null, ibw: null,
-    breathType: null, cycleReason: null, mode: s.mode, pressureLimited: false, highPressure: false,
+    breathType: null, cycleReason: null, mode: s.mode, pressureLimited: false, highPressure: false, pinsp: null,
   };
 
   function ibw() { return idealBodyWeightHamilton(p.height, p.sex); }
@@ -151,6 +155,13 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
     } else if (mode === 'PCV' && type !== 'backup') {
       b.ptarget = s.peep + s.pcontrol;
       b.tiSet = ti;
+    } else if (mode === 'APVCMV' && type !== 'backup') {
+      // Hamilton APV: ΔPinsp mellom 5 cmH2O og Plimit − PEEP
+      apvPinsp = Math.max(5, Math.min(apvPinsp, s.pmax - 10 - s.peep));
+      b.ptarget = s.peep + apvPinsp;
+      b.apv = true;
+      if (apvLimited) b.pressureLimited = true;
+      b.tiSet = ti;
     } else if (type === 'backup') {
       b.ptarget = s.peep + s.backup.pcontrol;
       b.tiSet = Math.min(1.0, cycleTime(s.backup.rate) / 3);
@@ -191,8 +202,20 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
     breath.expStartTime = t;
   }
 
+  function adaptApv(b) {
+    if (!b.apv || disconnected || b.vti <= 0) return;
+    // multiplikativ korreksjon mot mål-Vt, begrenset til ±3 cmH2O per pust (modellvalg)
+    const ratio = s.vt / b.vti;
+    let next = apvPinsp * Math.min(1.5, Math.max(0.6, ratio));
+    next = Math.max(apvPinsp - 3, Math.min(apvPinsp + 3, next));
+    const limit = s.pmax - 10 - s.peep;
+    apvLimited = next > limit + 0.01 && b.vti < s.vt * 0.97;
+    apvPinsp = Math.max(5, Math.min(next, limit));
+  }
+
   function finishBreath() {
     const b = breath;
+    adaptApv(b);
     b.tcycle = t - b.start;
     b.te = b.tcycle - b.ti - (b.holdTime || 0);
     b.endExpPalv = lung.state.palv;
@@ -211,6 +234,7 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
     m.cycleReason = b.cycleReason;
     m.pressureLimited = b.pressureLimited;
     m.highPressure = b.highPressure;
+    m.pinsp = b.apv ? apvPinsp : (b.ptarget !== undefined ? b.ptarget - b.peepSet : null);
     m.ppeak = b.ppeak;
     m.pplat = b.endInspPalv;
     m.pmean = b.pawInt / b.tcycle;
@@ -218,7 +242,7 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
     m.peepTotal = peepTotal;
     m.autoPeep = Math.max(0, peepTotal - b.peepSet);
     m.vti = b.vti;
-    m.vte = b.vte;
+    m.vte = b.vte * (1 - leak);
     m.ti = b.ti;
     m.te = b.te;
     const ratio = b.te / b.ti;
@@ -233,7 +257,7 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
     const totalTime = history.reduce((a, x) => a + x.tcycle, 0) + b.tcycle;
     const n = history.length + 1;
     m.fTotal = (60 * n) / totalTime;
-    m.expMinVol = ((history.reduce((a, x) => a + x.vte, 0) + b.vte) / totalTime) * 60 / 1000;
+    m.expMinVol = ((history.reduce((a, x) => a + x.vte, 0) + b.vte) * (1 - leak) / totalTime) * 60 / 1000;
     const spontN = history.filter((x) => x.type === 'spont').length + (b.type === 'spont' ? 1 : 0);
     m.fSpont = (60 * spontN) / totalTime;
     if (holdResult?.type === 'insp') m.pplatMeasured = holdResult.pplat;
@@ -419,12 +443,15 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
     get backupActive() { return backupActive; },
     get disconnected() { return disconnected; },
     setDisconnected(v) { disconnected = !!v; },
+    get leak() { return leak; },
+    setLeak(fraction) { leak = Math.min(0.9, Math.max(0, fraction || 0)); },
 
     setSettings(partial) {
       const prevMode = s.mode;
       deepMerge(s, partial);
       if (s.mode !== prevMode) {
         backupActive = false;
+        apvPinsp = 15;
         if (s.mode !== 'SPONT' && phase === 'exp') nextMandatory = Math.min(nextMandatory, t + cycleTime(s.rate));
         if (s.mode === 'SPONT') lastBreathStart = t;
       }
@@ -483,6 +510,7 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
       effortStart = -Infinity; effortNext = Infinity; backupActive = false; lastBreathStart = 0;
       hold.requested = null; hold.active = null; hold.released = false; holdResult = null;
       history.length = 0;
+      apvPinsp = 15;
       lung.reset(p.compliance * s.peep);
       scheduleEffortAfter(0);
     },

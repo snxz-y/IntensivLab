@@ -52,7 +52,11 @@ export function generateCase({ level = null, scenarioId = null, weights = null, 
   let hco3, pco2mmHg, agCorr;
   const agNormal = () => uni(rng, 6.5, 10.5); // holder seg ≤ 12 også etter avrunding
 
-  if (sc.primary === 'met-acidose') {
+  if (sc.primary === 'normal') {
+    hco3 = uni(rng, 23, 25.5);
+    pco2mmHg = uni(rng, 37, 43);
+    agCorr = agNormal();
+  } else if (sc.primary === 'met-acidose') {
     hco3 = uni(rng, ...sc.severity);
     if (sc.secondary === 'met-alkalose') {
       agCorr = uni(rng, 24, 32);

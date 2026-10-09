@@ -17,6 +17,7 @@ function seeded(seed) {
 const N = 40;
 
 function expectedStep3(sc) {
+  if (sc.primary === 'normal') return ['ikke-aktuelt'];
   if (sc.primary === 'met-acidose' || sc.primary === 'met-alkalose') {
     if (sc.secondary === 'resp-acidose') return ['tillegg-resp-acidose'];
     if (sc.secondary === 'resp-alkalose') return ['tillegg-resp-alkalose'];
@@ -24,7 +25,7 @@ function expectedStep3(sc) {
   }
   if (sc.secondary === 'met-acidose-hoy-ag') return ['tillegg-met-acidose', 'tillegg-resp-acidose'];
   if (sc.secondary === 'met-alkalose') return ['tillegg-met-alkalose', 'tillegg-resp-alkalose'];
-  return sc.chronic ? ['kronisk', 'delvis-kronisk'] : ['akutt'];
+  return sc.chronic ? ['kronisk', 'delvis-kronisk', 'akutt'] : ['akutt'];
 }
 
 for (const sc of SCENARIOS) {
@@ -58,7 +59,8 @@ for (const sc of SCENARIOS) {
 
       // pH ligger på riktig side av 7,40 for primærforstyrrelsen
       const acid = sc.primary.endsWith('acidose');
-      if (acid) assert.ok(v.ph <= 7.40 || c.key.step1 === 'normal', `pH-side ${tag}`);
+      if (sc.primary === 'normal') assert.ok(v.ph >= 7.35 && v.ph <= 7.45 && c.key.step2 === 'normal', `normal ${tag}`);
+      else if (acid) assert.ok(v.ph <= 7.40 || c.key.step1 === 'normal', `pH-side ${tag}`);
       else assert.ok(v.ph >= 7.40 || c.key.step1 === 'normal', `pH-side ${tag}`);
       assert.ok(['acidemi', 'alkalemi', 'normal'].includes(c.key.step1));
 

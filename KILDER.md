@@ -34,6 +34,7 @@ Status: alle fem faser ferdig. Oppføringer merket UVERIFISERT bør sjekkes mot 
 - Pasientinnsats Pmus modelleres som halv sinus over nevral inspirasjonstid (core/sim/patientEffort.js). Vanlig forenkling i simulatorer; ingen klinisk kilde.
 - Trykkstyrt steg integreres eksakt (eksponentielt) per tidssteg på 5 ms.
 - SPONT-trigging beregnes fra hvor mye pasienten «trekker» under PEEP; flowtrigger sammenlikner dette delt på R med innstilt L/min.
+- (S)CMV+ (APVcmv) er modellert som trykkontroll der ΔPinsp justeres ±3 cmH2O per pust (maks) mot innstilt Vt, mellom 5 cmH2O og Plimit − PEEP. Hamiltons faktiske regulator er ikke offentlig beskrevet; at APV er trykkregulert med volummål og begrenses av Plimit = Pmax − 10 er bekreftet i håndboken. Den gamle flowstyrte (S)CMV beholdes for undervisning og tester.
 
 ## Gassutveksling i respiratorsimulatoren (core/physiology/gasExchange.js, core/sim/gasModel.js)
 
@@ -51,9 +52,11 @@ PEEP reduserer shunt lineært med pasientens «rekrutterbarhet» opp til PEEP 15
 alveolærgass 20 s (90 s ved apné), SpO2 30 s; PetCO2 = PaCO2 − 0,5 kPa. Profilverdier for shunt
 (normal 5 %, ARDS 30 %, obstruktiv 10 %, restriktiv 15 %) er valgt for undervisning.
 
-## Situasjoner (modules/respirator/scenarios.js)
+## Caser (modules/respirator/scenarios.js)
 
-Hendelsenes effektstørrelser (f.eks. resistance × 6 ved biting, compliance × 0,4 ved trykkpneumothorax,
+Casene (snuing med derekruttering eller tubemigrasjon, biting, sekret, frakobling, trykkpneumothorax,
+bronkospasme, asynkroni, cuff-lekkasje, tubeplugg, lungeemboli, PEEP-hypotensjon, opioidapné, smerte)
+er konstruert. Hendelsenes effektstørrelser (f.eks. resistance × 6 ved biting, compliance × 0,4 ved trykkpneumothorax,
 shunt + 0,22 ved derekruttering) er pedagogiske valg, UVERIFISERT. De kliniske funnene i ledetrådene
 (ensidig respirasjonslyd ved tube i hovedbronkus, hypersonor perkusjon og halsvenestuvning ved
 trykkpneumothorax, rhonchi ved sekret) er standard klinisk undersøkelseslære.
@@ -61,7 +64,8 @@ trykkpneumothorax, rhonchi ved sekret) er standard klinisk undersøkelseslære.
 ## Lyd (core/audio/ventSounds.js)
 
 Alarmmønstrene (høy prioritet: 5 pulser gjentatt; middels: 3 pulser periodisk) følger beskrivelsen i HAMILTON-C6-håndboken kap. 9, men tonehøyde og tempo er valgt (UVERIFISERT som gjengivelse av den faktiske lyden).
-Pustelyden er filtrert støy styrt av flow (ren syntese). Pulstonen følger pulsoksymeterpraksis der
+Pustelyden er lagdelt, filtrert støy styrt av flow (ren syntese); pasientlydene (ekspiratoriske pipelyder,
+sekretrasling, hoste) er også syntetiske og bare ment som gjenkjennelige signaler, ikke som gjengivelse av auskultasjonsfunn. Pulstonen følger pulsoksymeterpraksis der
 tonehøyden faller med metningen; tallene (880 Hz ved 100 %, 520 Hz ved 80 %) er valgt, ikke kildebelagt.
 
 ## Blodgasstrener
@@ -101,10 +105,12 @@ tonehøyden faller med metningen; tallene (880 Hz ved 100 %, 520 Hz ved 80 %) er
 | Hva | Verdi brukt | Merknad |
 |---|---|---|
 | K4: IBW-formel | menn 0,9079·høyde − 88,022; kvinner 0,9049·høyde − 92,006 | Brukerhåndboken bekrefter at IBW regnes fra høyde og kjønn, men formelen fant jeg ikke i teksten. Avviker < 1,5 kg fra ARDSNet (K3). |
-| Standardinnstillinger voksen | f 15, PEEP 5, O2 40 %, I:E 1:2, Pcontrol 15, Psupport 10, Pramp 50 ms, flowtrigger 2 L/min, apnétid 20 s, backup f 12 / Pcontrol 15 | Ment å ligne Hamiltons voksenstandard; ikke bekreftet i håndboken. Bekreftet: Vt/IBW 8 ml/kg, ETS 25 %, TI max 1,5 s, trykktrigger −2 cmH2O (se under). |
+| Standardinnstillinger voksen | modus (S)CMV+, f 15, PEEP 5, O2 40 %, I:E 1:2, Pcontrol 15, Psupport 10, Pramp 50 ms, flowtrigger 2 L/min, apnétid 20 s, backup f 12 / Pcontrol 15, Pmax 40 | Ment å ligne Hamiltons voksenstandard; ikke bekreftet i håndboken. Bekreftet: Vt/IBW 8 ml/kg, ETS 25 %, TI max 1,5 s, trykktrigger −2 cmH2O (se under). |
 | Maks holdvarighet | 10 s | Hamilton avslutter insp./eksp. hold automatisk; usikker på grensen. |
 | Deselererende flow | lineært til 50 % av toppflow | Hamilton tilbyr flere mønstre; 50 %-varianten er valgt. |
 | Refraktærtid etter ekspirasjonsstart før ny trigging | 0,15 s | Eget valg for å unngå autotrigging i modellen. |
+| Vent Status-soner (avvenningssone) | O2 21–40 %, PEEP ≤ 8, ΔPinsp ≤ 10, MinVol 4–10 l/min, spontanandel ≥ 60 %, RSB ≤ 105 | Panelet finnes på C6 (håndboken kap. 8), men sonegrensene her er pedagogiske valg; RSB ≤ 105 fra Yang & Tobin 1991. |
+| Dynamic Lung | lungestørrelse følger volum, farge følger compliance, bronkiebredde følger resistance | Panelet finnes på C6; tegningen er egen forenkling. |
 
 ### Bekreftet mot HAMILTON-C6 Operator's Manual (SW 1.2.x, Hamilton Medical, hamilton-medical.com)
 

@@ -18,28 +18,39 @@ Nettbasert læringsplattform for intensivsykepleie, bygd som statisk app
 
 Skjermen til venstre er lagt opp etter HAMILTON-C6s hovedskjerm (brukerhåndbok kap. 2.2.2):
 modus øverst til venstre, fargekodet meldingslinje med Audio pause, MMP-kolonne til venstre
-med alarmgrenser, kurver og sløyfer i midten, vindusknappene Alarmer, Kontroller,
-Monitorering, Grafikk, Verktøy, Hendelser og System til høyre, hurtigknapper (manuell pust,
-O2-anrikning, frys, lyd) og hovedkontrollene for aktiv modus nederst. Trykk på en kontroll
-eller en MMP for å endre den.
+med alarmgrenser, kurver i midten med valgfrie intelligente paneler (Dynamic Lung og
+Vent Status, som på C6) eller sløyfer, vindusknappene Alarmer, Kontroller (faner Grunn,
+Pasient, Apné), Monitorering, Grafikk, Verktøy, Hendelser og System til høyre, hurtigknapper
+(manuell pust, O2-anrikning, lyd, standby) og hovedkontrollene for aktiv modus nederst.
+Trykk på modusfeltet for moduslisten: (S)CMV+, PCV+ og SPONT er simulert; de andre
+C6-modiene står oppført, men er grå. Trykk på en kontroll eller en MMP for å endre den.
 
 Sidepanelet til høyre (under på smale skjermer) ligger utenfor respiratoren og forsvinner
 ikke når du justerer den:
 
 - **Pasientmonitor** øverst: SpO2, puls, blodtrykk, RF og temperatur.
 - **Pasient**: profil (normal, ARDS, obstruktiv, restriktiv), mekanikk, egenpust,
-  gassutveksling (shunt, rekrutterbarhet), høyde og kjønn.
-- **Situasjoner**: falske pasienter der noe skjer underveis. Du får observasjoner,
-  beskjeder fra kollega, monitor og respirator i en meldingsfeed (og som varsler), undersøker
-  (lytt, se, sjekk krets) og setter inn tiltak. Riktig tiltak løser situasjonen; feil tiltak
-  logges og forklares.
-- **Oppgaver**: før hver endring må du forutsi hva som skjer. Fasit simuleres i en kopi av
-  respiratoren.
+  gassutveksling (shunt, rekrutterbarhet). Høyde og kjønn stilles på respiratoren.
+- **Caser**: 13 falske pasienter, nummerert «Case 1» til «Case 13» så navnet ikke røper
+  hva som skjer (det vises først i oppsummeringen). Du får pasientinformasjon,
+  observasjoner, beskjeder fra kollega, monitor og respirator i en meldingsfeed, og valg på
+  løpende bånd: først to runder undersøkelser (1 av 5, f.eks. lytt, se på tube, sjekk krets,
+  blodgass, inspiratorisk hold), så tiltak (1 av 5) med noen sekunders pause mellom valgene
+  så du rekker å observere. «Juster respiratoren» er alltid ett av tiltakene; velger du det
+  der det er riktig, får du ingen flere alternativer og må gjøre justeringen selv på
+  skjermen. Riktig tiltak løser casen når målingene har holdt seg normale i 15 s.
+- **Oppgaver**: 24 oppgaver i seks kategorier (lungebeskyttende ventilasjon, feilsøking og
+  alarmer, auto-PEEP og obstruksjon, modus og innstillinger, oksygenering og CO2, trigging,
+  synkroni og avvenning). Før hver endring må du forutsi hva som skjer; fasit simuleres i en
+  kopi av respiratoren. Løste oppgaver merkes ikke.
 
-Respiratoren starter alltid i standardoppsett: (S)CMV, Vt 8 ml/kg IBW, Rate 15, PEEP 5,
-Oksygen 40 %. Plimit = Pmax − 10 begrenser levert trykk, og ved Pmax åpnes
-ekspirasjonsventilen, slik C6 gjør. Lyd (pustelyd, alarmer i to prioriteter, pulstone)
-syntetiseres med Web Audio. Fremdrift lagres lokalt i nettleseren.
+Respiratoren starter alltid i standardoppsett: (S)CMV+ (adaptiv trykkregulering mot
+volummål, som Hamiltons APVcmv), Vt 8 ml/kg IBW, Rate 15, PEEP 5, Oksygen 40 %, I:E 1:2,
+P-ramp 50 ms, flowtrigger 2 l/min. Plimit = Pmax − 10 begrenser levert trykk, og ved Pmax
+åpnes ekspirasjonsventilen, slik C6 gjør. Lyd (respiratorens pustelyd som følger flowen,
+alarmer i to prioriteter, pulstone, pasientlyder som pipelyder, sekretrasling og hoste)
+syntetiseres med Web Audio og virker på iPad etter første trykk på «Lyd». Fremdrift lagres
+lokalt i nettleseren.
 
 ## Blodgasstreneren
 

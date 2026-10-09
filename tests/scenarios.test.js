@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { SITUATIONS, ACTIONS, createSituation, gasForProfile, computeVitals } from '../modules/respirator/scenarios.js';
+import { SITUATIONS, ACTIONS, createSituation, gasForProfile, computeVitals, DEFAULT_NEUTRAL } from '../modules/respirator/scenarios.js';
 import { createVentilator } from '../core/sim/ventilator.js';
 import { createGasModel } from '../core/sim/gasModel.js';
 import { getProfile } from '../modules/respirator/profiles.js';
@@ -14,6 +14,7 @@ function rig(def, variantIndex = 0) {
     getPatient: () => vent.patient, setPatient: (p) => vent.setPatient(p),
     getGas: () => ({ ...gas.params }), setGas: (g) => gas.setParams(g),
     setDisconnected: (v) => vent.setDisconnected(v),
+    setLeak: (f) => vent.setLeak(f),
   };
   const rng = (() => { let i = 0; return () => (i++ === 0 ? variantIndex / def.variants.length + 1e-6 : 0.5); })();
   const sit = createSituation(def, { rng, hooks });
@@ -29,8 +30,8 @@ test('alle situasjoner har komplette handlingstabeller', () => {
   for (const def of SITUATIONS) {
     for (const v of def.variants) {
       for (const id of Object.keys(ACTIONS)) {
-        if (ACTIONS[id].kind === 'undersok') assert.ok(v.clues[id], `${def.id}/${v.id} mangler ledetråd ${id}`);
-        else assert.ok(v.fixes[id] || v.harmful[id] || v.neutral[id], `${def.id}/${v.id} mangler tekst for ${id}`);
+        if (ACTIONS[id].kind === 'undersok') { if (['lytt', 'se', 'krets'].includes(id)) assert.ok(v.clues[id], `${def.id}/${v.id} mangler ledetråd ${id}`); }
+        else if (id !== 'juster') assert.ok(v.fixes[id] || v.harmful[id] || v.neutral[id] || DEFAULT_NEUTRAL[id], `${def.id}/${v.id} mangler tekst for ${id}`);
       }
       assert.ok(v.explanation.length > 50);
     }
@@ -134,6 +135,56 @@ test('computeVitals: hypoksi gir takykardi, fiks demper effekten', () => {
   assert.equal(computeVitals(base, { hr: 30 }, 1, 0.97).hr, 108);
   assert.ok(computeVitals(base, { hr: 30 }, 1, 0.85).hr > 108);
   assert.equal(computeVitals(base, { hr: 30 }, 0, 0.97).hr, 78);
+});
+
+test('beslutningsflyt: undersøkelser, så tiltak 1 av 5, riktig tiltak avslutter valgene', () => {
+  const { vent, sit, run } = rig(SITUATIONS.find((s) => s.id === 'frakobling'));
+  vent.run(30); sit.start(vent.time); run(5);
+  assert.equal(sit.decision, null);
+  run(45);
+  assert.ok(sit.decision && sit.decision.kind === 'undersok', 'første valg er undersøkelse');
+  assert.equal(sit.decision.options.length, 5);
+  const r1 = sit.choose('krets', vent.time);
+  assert.equal(r1.kind, 'ledetrad');
+  assert.equal(sit.decision, null);
+  run(3);
+  assert.equal(sit.decision, null, 'pause mellom valg');
+  run(4);
+  assert.ok(sit.decision && sit.decision.kind === 'undersok');
+  sit.skipToActions(vent.time);
+  run(3);
+  assert.ok(sit.decision && sit.decision.kind === 'tiltak', 'tiltaksvalg');
+  assert.ok(sit.decision.options.some((o) => o.id === 'koble'), 'riktig tiltak er med');
+  assert.ok(sit.decision.options.some((o) => o.id === 'juster'), '«Juster respiratoren» er med');
+  const wrong = sit.decision.options.find((o) => o.id !== 'koble' && o.id !== 'juster');
+  sit.choose(wrong.id, vent.time);
+  run(7);
+  assert.ok(sit.decision && sit.decision.kind === 'tiltak', 'nytt tiltaksvalg etter feil');
+  assert.ok(!sit.decision.options.some((o) => o.id === wrong.id), 'prøvd alternativ er borte');
+  sit.choose('koble', vent.time);
+  run(7);
+  assert.equal(sit.decision, null, 'ingen flere valg etter riktig tiltak');
+  assert.ok(!vent.disconnected);
+});
+
+test('cuff-lekkasje: VTE faller under VTI, cuff løser', () => {
+  const { vent, sit, run } = rig(SITUATIONS.find((s) => s.id === 'cuff-lekkasje'));
+  vent.run(30); sit.start(vent.time); run(90);
+  assert.ok(vent.measurements.vte < vent.measurements.vti * 0.7, `vte ${vent.measurements.vte} vti ${vent.measurements.vti}`);
+  sit.skipToActions(vent.time); run(3);
+  assert.equal(sit.choose('cuff', vent.time).kind, 'riktig');
+  run(40);
+  assert.equal(sit.state.status, 'resolved');
+});
+
+test('PEEP-hypotensjon løses ved å senke PEEP (juster respiratoren)', () => {
+  const { vent, sit, run } = rig(SITUATIONS.find((s) => s.id === 'peep-hypotensjon'));
+  vent.run(30); sit.start(vent.time); run(40);
+  sit.skipToActions(vent.time); run(3);
+  assert.equal(sit.choose('juster', vent.time).kind, 'riktig');
+  vent.setSettings({ peep: 8 });
+  run(30);
+  assert.equal(sit.state.status, 'resolved');
 });
 
 test('end() setter pasienten tilbake', () => {

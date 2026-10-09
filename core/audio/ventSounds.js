@@ -1,25 +1,29 @@
 /**
- * Respiratorlyder med Web Audio API: pustelyd som følger flowkurven, alarmtoner i to
- * prioriteter og valgfri pulstone som følger SpO2. Ingen lydfiler; alt syntetiseres.
+ * Respirator- og pasientlyder med Web Audio API. Ingen lydfiler; alt syntetiseres.
  *
- * Alarmmønstrene er inspirert av IEC 60601-1-8 (høy prioritet: to grupper med 3 + 2 pulser,
- * middels prioritet: 3 pulser), men er ikke en gjengivelse av Hamiltons faktiske lyder
- * (UVERIFISERT, se KILDER.md). Pulstonen følger praksis i pulsoksymetre der tonehøyden
- * faller med metningen.
+ * Lag:
+ *  - Turbin: svak, konstant høyfrekvent sus når respiratoren går (HAMILTON-C1 har integrert turbin).
+ *  - Pustelyd: filtrert støy styrt av flow. Inspirasjon lysere (luft gjennom tube og slanger),
+ *    ekspirasjon mørkere og «åpnere» (ekspirasjonsventil). Ventilklikk ved faseskifte.
+ *  - Pasientlyder: pipelyd (tonal, ekspiratorisk), sekretlyd/rhonchi (knitring i takt med flow),
+ *    hoste (støtvise lufttrykk).
+ *  - Alarmer: høy prioritet 5 pip gjentatt, middels 3 pip periodisk (HAMILTON-C6-håndbok kap. 9),
+ *    tonehøyde/tempo er valgt. Pulstone som følger SpO2.
  *
- * De rene hjelpefunksjonene (breathGain, breathFilterHz, pulsePitch, ALARM_PATTERNS) er
- * testbare uten lydkontekst.
+ * Alle volumer settes direkte med egen utjevning; ingen automasjonskø (Safari rydder ikke køen).
+ * De rene hjelpefunksjonene (breathGain, breathFilterHz, pulsePitch, ALARM_PATTERNS) er testbare uten
+ * lydkontekst.
  */
 
 /** Lydstyrke (0–1) for pustelyden ut fra flow (L/s). */
 export function breathGain(flowLps) {
   const x = Math.min(1, Math.abs(flowLps) / 0.9);
-  return x * x; // kvadratisk: stille ved lav flow, tydelig ved høy
+  return x * x;
 }
 
 /** Filterfrekvens (Hz): inspirasjon lysere, ekspirasjon mørkere. */
 export function breathFilterHz(flowLps) {
-  return flowLps >= 0 ? 700 : 380;
+  return flowLps >= 0 ? 900 : 420;
 }
 
 /** Tonehøyde (Hz) for pulstone ut fra SpO2 (0–1): 100 % ≈ 880 Hz, 80 % ≈ 520 Hz. */
@@ -36,21 +40,22 @@ export const ALARM_PATTERNS = {
 
 export function createVentAudio() {
   let ctx = null;
-  let master, noiseSrc, noiseFilter, noiseGain;
+  let master, breathGainNode, breathFilter, exhaleFilter, exhaleGain, turbineGain, wheezeOsc, wheezeGain, crackleGain, crackleFilter;
   let enabled = false;
-  const opts = { volume: 0.6, breath: true, alarms: true, pulse: false };
+  const opts = { volume: 0.6, breath: true, alarms: true, pulse: false, patient: true };
   let alarmPriority = null;
   let alarmTimer = null;
   let silencedUntil = 0;
   let pulseTimer = null;
   let pulseSpo2 = null;
   let pulseRate = 80;
-  let curGain = 0;      // egen utjevning: ingen automasjonshendelser (Safari rydder ikke køen)
-  let curFreq = 500;
-  let unlockEl = null;  // stille <audio> som setter iOS i avspillingsmodus
+  let curGain = 0, curExhale = 0, curFreq = 600, curWheeze = 0, curCrackle = 0;
+  let patient = { wheeze: 0, secretions: 0 };
+  let lastFlowSign = 0;
+  let lastCrackle = 0;
+  let unlockEl = null;
   let resumeHooked = false;
 
-  /** Liten stille WAV (0,2 s) som data-URL, bygget her så ingen konstant kan være feil. */
   function silentWav() {
     const rate = 8000, n = 1600;
     const buf = new ArrayBuffer(44 + n);
@@ -75,73 +80,104 @@ export function createVentAudio() {
     document.addEventListener('click', tryResume);
   }
 
+  /** Støybuffer med «rosa» karakter (lavpassfiltrert hvit støy) for naturligere sus. */
+  function noiseBuffer(seconds = 2) {
+    const len = Math.floor(ctx.sampleRate * seconds);
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    let b0 = 0, b1 = 0, b2 = 0;
+    for (let i = 0; i < len; i++) {
+      const w = Math.random() * 2 - 1;
+      b0 = 0.99765 * b0 + w * 0.099; b1 = 0.963 * b1 + w * 0.2965; b2 = 0.57 * b2 + w * 1.0526;
+      d[i] = (b0 + b1 + b2 + w * 0.1848) * 0.2;
+    }
+    return buf;
+  }
+  function loopNoise() { const src = ctx.createBufferSource(); src.buffer = noiseBuffer(); src.loop = true; src.start(); return src; }
+
   function ensure() {
     if (ctx) return;
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     ctx = new AC();
-    master = ctx.createGain();
-    master.gain.value = opts.volume;
+    master = ctx.createGain(); master.gain.value = opts.volume; master.connect(ctx.destination);
     ctx.onstatechange = () => { if (enabled && ctx.state === 'interrupted') ctx.resume().catch(() => {}); };
-    master.connect(ctx.destination);
-    // pustelyd: filtrert støy
-    const len = ctx.sampleRate * 2;
-    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
-    noiseSrc = ctx.createBufferSource();
-    noiseSrc.buffer = buf;
-    noiseSrc.loop = true;
-    noiseFilter = ctx.createBiquadFilter();
-    noiseFilter.type = 'bandpass';
-    noiseFilter.frequency.value = 500;
-    noiseFilter.Q.value = 0.8;
-    noiseGain = ctx.createGain();
-    noiseGain.gain.value = 0;
-    noiseSrc.connect(noiseFilter).connect(noiseGain).connect(master);
-    noiseSrc.start();
+
+    // Turbin: høyfrekvent svak sus
+    turbineGain = ctx.createGain(); turbineGain.gain.value = 0;
+    const tf = ctx.createBiquadFilter(); tf.type = 'bandpass'; tf.frequency.value = 3200; tf.Q.value = 2.5;
+    loopNoise().connect(tf).connect(turbineGain).connect(master);
+
+    // Inspirasjonslyd: båndpass-støy som følger flow
+    breathFilter = ctx.createBiquadFilter(); breathFilter.type = 'bandpass'; breathFilter.frequency.value = 900; breathFilter.Q.value = 0.9;
+    breathGainNode = ctx.createGain(); breathGainNode.gain.value = 0;
+    loopNoise().connect(breathFilter).connect(breathGainNode).connect(master);
+
+    // Ekspirasjonslyd: mørkere, «åpen» lyd fra ekspirasjonsventilen
+    exhaleFilter = ctx.createBiquadFilter(); exhaleFilter.type = 'lowpass'; exhaleFilter.frequency.value = 700; exhaleFilter.Q.value = 0.5;
+    exhaleGain = ctx.createGain(); exhaleGain.gain.value = 0;
+    loopNoise().connect(exhaleFilter).connect(exhaleGain).connect(master);
+
+    // Pipelyd: tonal, med vibrato, følger ekspiratorisk flow
+    wheezeOsc = ctx.createOscillator(); wheezeOsc.type = 'sawtooth'; wheezeOsc.frequency.value = 420;
+    const vib = ctx.createOscillator(); vib.frequency.value = 5.5; const vibG = ctx.createGain(); vibG.gain.value = 12;
+    vib.connect(vibG).connect(wheezeOsc.frequency); vib.start();
+    const wf = ctx.createBiquadFilter(); wf.type = 'lowpass'; wf.frequency.value = 1200;
+    wheezeGain = ctx.createGain(); wheezeGain.gain.value = 0;
+    wheezeOsc.connect(wf).connect(wheezeGain).connect(master); wheezeOsc.start();
+
+    // Sekretlyd: knitring = korte støypulser gjennom båndpass
+    crackleFilter = ctx.createBiquadFilter(); crackleFilter.type = 'bandpass'; crackleFilter.frequency.value = 350; crackleFilter.Q.value = 1.5;
+    crackleGain = ctx.createGain(); crackleGain.gain.value = 0;
+    loopNoise().connect(crackleFilter).connect(crackleGain).connect(master);
   }
 
-  function beep(freq, duration, when = 0, gain = 0.5) {
+  function beep(freq, duration, when = 0, gain = 0.5, type = 'triangle') {
     if (!ctx) return;
     const t0 = ctx.currentTime + when;
-    const osc = ctx.createOscillator();
+    const osc = ctx.createOscillator(); const osc2 = ctx.createOscillator();
     const g = ctx.createGain();
-    osc.type = 'triangle';
-    osc.frequency.value = freq;
+    osc.type = type; osc.frequency.value = freq;
+    osc2.type = 'sine'; osc2.frequency.value = freq * 2; // overtone for «elektronisk» klang
+    const g2 = ctx.createGain(); g2.gain.value = 0.25;
     g.gain.setValueAtTime(0, t0);
     g.gain.linearRampToValueAtTime(gain, t0 + 0.01);
     g.gain.setValueAtTime(gain, t0 + duration - 0.02);
     g.gain.linearRampToValueAtTime(0, t0 + duration);
-    osc.connect(g).connect(master);
-    osc.start(t0);
-    osc.stop(t0 + duration + 0.01);
+    osc.connect(g); osc2.connect(g2).connect(g); g.connect(master);
+    osc.start(t0); osc2.start(t0); osc.stop(t0 + duration + 0.01); osc2.stop(t0 + duration + 0.01);
+  }
+
+  /** Kort støystøt (ventilklikk, hostestøt). */
+  function burst({ duration = 0.03, freq = 2000, q = 1, gain = 0.3, when = 0, type = 'bandpass' } = {}) {
+    if (!ctx) return;
+    const t0 = ctx.currentTime + when;
+    const src = ctx.createBufferSource(); src.buffer = noiseBuffer(0.3);
+    const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(gain, t0 + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + duration);
+    src.connect(f).connect(g).connect(master);
+    src.start(t0); src.stop(t0 + duration + 0.02);
   }
 
   function scheduleAlarm() {
-    clearInterval(alarmTimer);
-    alarmTimer = null;
+    clearInterval(alarmTimer); alarmTimer = null;
     if (!enabled || !opts.alarms || !alarmPriority) return;
     const p = ALARM_PATTERNS[alarmPriority];
-    const fire = () => {
-      if (Date.now() < silencedUntil) return;
-      for (const t of p.times) beep(p.freq, p.pulse, t, alarmPriority === 'high' ? 0.6 : 0.4);
-    };
+    const fire = () => { if (Date.now() < silencedUntil) return; for (const t of p.times) beep(p.freq, p.pulse, t, alarmPriority === 'high' ? 0.6 : 0.4); };
     fire();
     alarmTimer = setInterval(fire, p.period * 1000);
   }
-
   function schedulePulse() {
-    clearInterval(pulseTimer);
-    pulseTimer = null;
+    clearInterval(pulseTimer); pulseTimer = null;
     if (!enabled || !opts.pulse || pulseSpo2 === null) return;
-    pulseTimer = setInterval(() => beep(pulsePitch(pulseSpo2), 0.06, 0, 0.25), 60000 / pulseRate);
+    pulseTimer = setInterval(() => beep(pulsePitch(pulseSpo2), 0.06, 0, 0.25, 'sine'), 60000 / Math.max(30, pulseRate));
   }
 
   return {
     get enabled() { return enabled; },
     get options() { return { ...opts }; },
-    /** Må kalles fra en brukerhandling (klikk/touch). */
     async enable() {
       ensure();
       if (!ctx) return false;
@@ -152,63 +188,86 @@ export function createVentAudio() {
       if (ctx.state !== 'running') await ctx.resume();
       hookResume();
       enabled = true;
-      scheduleAlarm();
-      schedulePulse();
+      scheduleAlarm(); schedulePulse();
       return true;
     },
     disable() {
       enabled = false;
       clearInterval(alarmTimer); alarmTimer = null;
       clearInterval(pulseTimer); pulseTimer = null;
-      if (noiseGain) { noiseGain.gain.value = 0; curGain = 0; }
+      for (const g of [breathGainNode, exhaleGain, turbineGain, wheezeGain, crackleGain]) if (g) g.gain.value = 0;
+      curGain = curExhale = curWheeze = curCrackle = 0;
       unlockEl?.pause?.();
       ctx?.suspend?.();
     },
     setOptions(partial) {
       Object.assign(opts, partial);
       if (master) master.gain.value = opts.volume;
-      if (!opts.breath && noiseGain) { noiseGain.gain.value = 0; curGain = 0; }
-      scheduleAlarm();
-      schedulePulse();
+      if (!opts.breath && breathGainNode) { breathGainNode.gain.value = 0; exhaleGain.gain.value = 0; turbineGain.gain.value = 0; }
+      if (!opts.patient && wheezeGain) { wheezeGain.gain.value = 0; crackleGain.gain.value = 0; }
+      scheduleAlarm(); schedulePulse();
     },
-    /** Oppdater pustelyden fra gjeldende flow (L/s). Kall hver frame. */
-    setBreath(flowLps) {
-      if (!enabled || !ctx || !opts.breath) return;
-      // direkte verdisetting med egen utjevning; ingen automasjonshendelser
-      curGain += (breathGain(flowLps) * 0.35 - curGain) * 0.25;
-      curFreq += (breathFilterHz(flowLps) - curFreq) * 0.15;
-      noiseGain.gain.value = curGain;
-      noiseFilter.frequency.value = curFreq;
+    /** Oppdater pustelyden fra gjeldende flow (L/s). Kall hver frame. running: respiratoren går. */
+    setBreath(flowLps, running = true) {
+      if (!enabled || !ctx) return;
+      if (opts.breath) {
+        const g = breathGain(flowLps);
+        const insp = flowLps > 0.02 ? g : 0;
+        const exp = flowLps < -0.02 ? g : 0;
+        curGain += (insp * 0.3 - curGain) * 0.25;
+        curExhale += (exp * 0.22 - curExhale) * 0.2;
+        curFreq += (breathFilterHz(flowLps) - curFreq) * 0.15;
+        breathGainNode.gain.value = curGain;
+        exhaleGain.gain.value = curExhale;
+        breathFilter.frequency.value = curFreq;
+        exhaleFilter.frequency.value = 500 + 600 * g;
+        turbineGain.gain.value += ((running ? 0.035 : 0) - turbineGain.gain.value) * 0.1;
+        // ventilklikk ved faseskifte
+        const sign = flowLps > 0.05 ? 1 : flowLps < -0.05 ? -1 : lastFlowSign;
+        if (sign !== lastFlowSign && lastFlowSign !== 0) burst({ duration: 0.02, freq: sign > 0 ? 2500 : 1600, q: 2, gain: 0.12 });
+        lastFlowSign = sign;
+      }
+      if (opts.patient) {
+        // pipelyd mest ved ekspirasjon, litt ved inspirasjon
+        const expo = flowLps < -0.05 ? Math.min(1, -flowLps / 0.6) : flowLps > 0.1 ? 0.25 : 0;
+        curWheeze += (patient.wheeze * expo * 0.12 - curWheeze) * 0.2;
+        wheezeGain.gain.value = curWheeze;
+        if (wheezeOsc) wheezeOsc.frequency.value = 380 + 120 * patient.wheeze + (flowLps < 0 ? 0 : 60);
+        // sekret: knitring i takt med flow, tilfeldige små pulser
+        const target = patient.secretions * breathGain(flowLps) * 0.25;
+        curCrackle += (target - curCrackle) * 0.3;
+        crackleGain.gain.value = curCrackle * (Math.random() < 0.5 ? 1 : 0.3);
+        if (patient.secretions > 0 && Math.abs(flowLps) > 0.2 && ctx.currentTime - lastCrackle > 0.12 && Math.random() < 0.35) {
+          lastCrackle = ctx.currentTime;
+          burst({ duration: 0.012, freq: 500 + Math.random() * 900, q: 3, gain: 0.18 * patient.secretions });
+        }
+      }
     },
-    /** 'high' | 'medium' | null */
-    setAlarm(priority) {
-      if (priority === alarmPriority) return;
-      alarmPriority = priority;
-      scheduleAlarm();
+    /** Pasientlyder: { wheeze: 0–1, secretions: 0–1 } */
+    setPatientSounds(p) { patient = { ...patient, ...p }; },
+    /** Hoste: 2–4 støtvise lufttrykk. */
+    cough(n = 3) {
+      if (!enabled || !ctx || !opts.patient) return;
+      for (let i = 0; i < n; i++) {
+        const when = i * (0.28 + Math.random() * 0.08);
+        burst({ duration: 0.16, freq: 300, q: 0.6, gain: 0.5, when, type: 'lowpass' });
+        burst({ duration: 0.06, freq: 1800, q: 1.2, gain: 0.25, when });
+      }
     },
-    /** Demp alarmen i `seconds` sekunder (Hamilton: «Audio pause»). */
-    silence(seconds = 120) {
-      silencedUntil = Date.now() + seconds * 1000;
-    },
+    setAlarm(priority) { if (priority === alarmPriority) return; alarmPriority = priority; scheduleAlarm(); },
+    silence(seconds = 120) { silencedUntil = Date.now() + seconds * 1000; },
     get silenced() { return Date.now() < silencedUntil; },
     get silencedFor() { return Math.max(0, (silencedUntil - Date.now()) / 1000); },
     unsilence() { silencedUntil = 0; },
-    /** Kort to-tone varsel (ny melding i en situasjon). */
-    notify() {
-      if (!enabled || !ctx) return;
-      beep(740, 0.08, 0, 0.3);
-      beep(988, 0.1, 0.1, 0.3);
-    },
-    /** spo2 0–1 eller null for å slå av. */
+    notify() { if (!enabled || !ctx) return; beep(740, 0.08, 0, 0.3, 'sine'); beep(988, 0.1, 0.1, 0.3, 'sine'); },
     setPulse(spo2, rate = 80) {
       const was = pulseSpo2 === null;
-      pulseSpo2 = spo2;
-      pulseRate = rate;
+      pulseSpo2 = spo2; pulseRate = rate;
       if (was !== (spo2 === null) || !pulseTimer) schedulePulse();
     },
     destroy() {
       this.disable();
-      try { noiseSrc?.stop(); ctx?.close(); } catch { /* ignorer */ }
+      try { ctx?.close(); } catch { /* ignorer */ }
       ctx = null;
     },
   };

@@ -175,6 +175,26 @@ test('trykkbegrensning: VC leverer mindre volum når Paw ville overstige Plimit,
   assert.ok(b.measurements.ppeak <= 20.5);
 });
 
+test('(S)CMV+ (APVcmv): trykket justeres pust for pust til innstilt Vt nås', () => {
+  const v = createVentilator({ settings: { mode: 'APVCMV', vt: 450, rate: 14, peep: 6, pmax: 40 }, patient: { compliance: 40, resistance: 10 } });
+  v.run(60);
+  const m = { ...v.measurements };
+  near(m.vti, 450, 15);
+  near(m.pinsp, 450 / 40, 2.5); // ≈ Vt/C når lungen rekker å fylles
+  assert.ok(m.ppeak <= 30.1, `ppeak ${m.ppeak}`);
+  // stivere lunge → trykket må opp, Vt holdes
+  v.setPatient({ compliance: 25 });
+  v.run(60);
+  near(v.measurements.vti, 450, 15);
+  assert.ok(v.measurements.pinsp > m.pinsp + 5);
+  // Plimit stopper økningen: Vt nås ikke og trykkbegrensning flagges
+  v.setSettings({ pmax: 25 });
+  v.run(60);
+  assert.ok(v.measurements.vti < 400, `vti ${v.measurements.vti}`);
+  assert.ok(v.measurements.pressureLimited);
+  assert.ok(v.measurements.ppeak <= 15.1);
+});
+
 test('innstillingsendring virker fra neste pust', () => {
   const v = createVentilator({ settings: { mode: 'SCMV', vt: 500, rate: 15, peep: 5 }, patient: { compliance: 50, resistance: 10 } });
   v.run(10);

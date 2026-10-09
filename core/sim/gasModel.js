@@ -13,14 +13,15 @@
 import { steadyStateGas, arterialFromShunt, effectiveShunt } from '../physiology/gasExchange.js';
 import { alveolarPo2 } from '../physiology/acidbase.js';
 
-export function createGasModel({ shunt = 0.05, recruitability = 0, vco2 = 200, hbGL = 120, tauSpo2 = 30, tauCo2 = 180, tauAlv = 20, tauApnea = 90 } = {}) {
-  const p = { shunt, recruitability, vco2, hbGL };
+export function createGasModel({ shunt = 0.05, recruitability = 0, vco2 = 200, hbGL = 120, petGap = 0.5, tauSpo2 = 30, tauCo2 = 180, tauAlv = 20, tauApnea = 90 } = {}) {
+  const p = { shunt, recruitability, vco2, hbGL, petGap };
   const state = { spo2: 0.97, sao2: 0.97, paco2: 5.3, pao2: 12, pao2Alv: 13, va: 4, target: null };
   let vent = null;
 
   function setVentilation(v) {
     vent = { ...v };
-    const g = steadyStateGas({ ...v, ...p });
+    const { petGap: _pg, ...gp } = p;
+    const g = steadyStateGas({ ...v, ...gp });
     state.target = g;
     state.va = g.va;
   }
@@ -58,6 +59,6 @@ export function createGasModel({ shunt = 0.05, recruitability = 0, vco2 = 200, h
       state.pao2 = state.target.pao2;
       state.spo2 = state.target.sao2;
     },
-    get petco2() { return Math.max(0, state.paco2 - 0.5); },
+    get petco2() { return Math.max(0, state.paco2 - (p.petGap ?? 0.5)); },
   };
 }
