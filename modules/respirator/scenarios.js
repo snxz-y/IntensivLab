@@ -485,6 +485,7 @@ export function createSituation(def, { rng = Math.random, hooks } = {}) {
     hooks.setDisconnected(!!e.disconnect && scale >= 1);
     hooks.setLeak?.((e.leak ?? 0) * scale);
     hooks.setTriggerNoise?.((e.triggerNoise ?? 0) * scale);
+    hooks.setArtifacts?.({ secretions: (variant.sounds?.secretions ?? 0) * scale });
   }
 
   return {
@@ -528,6 +529,8 @@ export function createSituation(def, { rng = Math.random, hooks } = {}) {
       if (ctx.disconnected && !st.flags.disc) { st.flags.disc = true; say(t, 'respirator', 'Alarm: lavt trykk / frakobling. ExpMinVol 0.'); }
       if (m.fTotal > 30 && !st.flags.ftot) { st.flags.ftot = true; say(t, 'respirator', `Alarm: høy frekvens, fTotal ${Math.round(m.fTotal)}.`); }
       if (m.expMinVol != null && m.expMinVol < 4 && !ctx.disconnected && !st.flags.mvlow) { st.flags.mvlow = true; say(t, 'respirator', `Alarm: lavt minuttvolum, ExpMinVol ${m.expMinVol.toFixed(1)} l/min.`); }
+      // hoste hos pasienter med sekret/irritasjon: synlig som trykkspiss og flowstøt på kurvene, hørbart i lyden
+      if (variant.sounds?.cough && st.factor > 0.3 && !st.fixed) { st.nextCough ??= t + 4; if (t >= st.nextCough) { hooks.cough?.(); st.nextCough = t + 18 + rng() * 25; } }
       if (m.autoPeep > 4 && !st.flags.autopeep) { st.flags.autopeep = true; say(t, 'respirator', `AutoPEEP ${m.autoPeep.toFixed(0)} cmH2O: ekspirasjonsflowen når ikke null.`); }
 
       if (st.status === 'active' && !decision.done && !decision.pending) {
@@ -635,7 +638,7 @@ export function createSituation(def, { rng = Math.random, hooks } = {}) {
     },
     /** Avslutt: sett pasienten tilbake. */
     end() {
-      if (st.baseline) { hooks.setPatient(structuredClone(st.baseline.patient)); hooks.setGas(structuredClone(st.baseline.gas)); hooks.setDisconnected(false); hooks.setLeak?.(0); hooks.setTriggerNoise?.(0); }
+      if (st.baseline) { hooks.setPatient(structuredClone(st.baseline.patient)); hooks.setGas(structuredClone(st.baseline.gas)); hooks.setDisconnected(false); hooks.setLeak?.(0); hooks.setTriggerNoise?.(0); hooks.setArtifacts?.({ secretions: 0 }); }
     },
   };
 }

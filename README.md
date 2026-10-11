@@ -74,6 +74,9 @@ ikke når du justerer den:
   gjenstår (verdiene må være innenfor målet i 10 s). «Juster respiratoren» er alltid ett av tiltakene; velger du det
   der det er riktig, får du ingen flere alternativer og må gjøre justeringen selv på
   skjermen. Riktig tiltak løser casen når målingene har holdt seg normale i 15 s.
+- **Kurvene viser det som skjer**: sekret gir sagtakker på flow- og trykkurven, hoste gir trykkspiss
+  og flowstøt, cuff-lekkasje gjør at volumkurven ikke vender tilbake til null, kondensvann gir
+  flowstøt i ekspirasjonen, og hjerteoscillasjoner gir små rippler ved ekspirasjonsslutt.
 - **Oppgaver**: 24 oppgaver i seks kategorier (lungebeskyttende ventilasjon, feilsøking og
   alarmer, auto-PEEP og obstruksjon, modus og innstillinger, oksygenering og CO2, trigging,
   synkroni og avvenning). Før hver endring må du forutsi hva som skjer; fasit simuleres i en
@@ -88,6 +91,9 @@ sekretrasling og hoste) syntetiseres med Web Audio og virker på iPad etter før
 lokalt i nettleseren.
 
 ## Blodgasstreneren
+
+Blodgassarket viser også anion gap (uten kalium), slik analysatoren skriver det ut, og trinnet om
+anion gap handler om å tolke verdien (høy eller normal, med albuminkorreksjon).
 
 Hvert kasus genereres fra en underliggende forstyrrelse, så pH, PaCO2 og HCO3 alltid
 henger sammen (Henderson–Hasselbalch). Tolkningen gjøres trinn for trinn, og neste

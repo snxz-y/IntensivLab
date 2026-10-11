@@ -224,3 +224,27 @@ test('volum i prøver starter på 0 ved hver pust og VTE ≈ VTI i steady state'
   assert.ok(minV >= -1 && minV < 5, `min volum ${minV}`);
   near(v.measurements.vte, v.measurements.vti, 2);
 });
+
+test('kurveartefakter: sekret gir sagtakker på målt flow og trykk, lekkasje gir volumkurve som ikke vender til null, hoste gir trykkspiss', () => {
+  const v = createVentilator({ settings: { mode: 'SCMV', vt: 500, rate: 15, peep: 5 }, patient: { compliance: 50, resistance: 10, height: 175, sex: 'M', effort: { amplitude: 0, rate: 12 } } });
+  v.run(10);
+  const clean = []; for (let i = 0; i < 400; i++) clean.push(v.step());
+  v.setArtifacts({ secretions: 1 });
+  const dirty = []; for (let i = 0; i < 400; i++) dirty.push(v.step());
+  const rough = (arr, k) => arr.slice(1).reduce((a, x, i) => a + Math.abs(x[k] - arr[i][k]), 0);
+  assert.ok(rough(dirty, 'flow') > 3 * rough(clean, 'flow'), 'flowkurven blir taggete');
+  assert.ok(rough(dirty, 'paw') > 3 * rough(clean, 'paw'), 'trykkurven blir taggete');
+  assert.ok(Math.abs(v.measurements.vte - 500) < 25, 'fysikken (VTE) påvirkes ikke av artefakter');
+  v.setArtifacts({ secretions: 0 });
+  v.setLeak(0.3); v.run(12);
+  // ved slutten av ekspirasjonen står den målte volumkurven igjen på omtrent VTI − VTE
+  let endExp = null; for (let i = 0; i < 800; i++) { const smp = v.step(); if (smp.phase === 'exp') endExp = smp; }
+  assert.ok(endExp.volume > 100, `volumkurven vender ikke til null ved lekkasje (${endExp.volume.toFixed(0)} ml)`);
+  v.setLeak(0); v.run(8);
+  let pk = 0; for (let i = 0; i < 400; i++) { const smp = v.step(); if (smp.phase === 'insp') pk = Math.max(pk, smp.paw); }
+  const before = pk;
+  // hoste under inspirasjonen i volumkontroll: topptrykket spretter opp
+  for (let i = 0; i < 2000; i++) { const smp = v.step(); if (smp.phase === 'insp' && smp.volume > 150) { v.cough(25); break; } }
+  let pk2 = 0; for (let i = 0; i < 80; i++) { const smp = v.step(); pk2 = Math.max(pk2, smp.paw); }
+  assert.ok(pk2 > before + 8, `hoste gir trykkspiss (${before.toFixed(0)} → ${pk2.toFixed(0)})`);
+});

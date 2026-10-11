@@ -18,7 +18,7 @@ export const REF = {
   albumin: { low: 36, high: 48, unit: 'g/L', decimals: 0, label: 'Albumin', note: 'UVERIFISERT; aldersavhengig' },
   glucose: { low: 4.0, high: 7.8, unit: 'mmol/L', decimals: 1, label: 'Glukose', note: 'UVERIFISERT; ikke-fastende' },
   fio2: { low: 0.21, high: 1.0, unit: '', decimals: 2, label: 'FiO2' },
-  ag: { low: 8, high: 12, unit: 'mmol/L', decimals: 0, label: 'Anion gap', note: 'uten K; UVERIFISERT (laboratorieavhengig)' },
+  ag: { low: 6, high: 12, unit: 'mmol/L', decimals: 0, label: 'Anion gap', note: 'uten K; typisk 6–12 (laboratorieavhengig, UVERIFISERT)' },
 };
 
 /** 'lav' | 'normal' | 'høy' i forhold til referanseområdet. */

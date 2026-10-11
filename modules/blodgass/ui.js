@@ -21,6 +21,8 @@ const VALUE_ROWS = [
   { group: 'Elektrolytter og annet' },
   { key: 'na', label: 'Na⁺' }, { key: 'k', label: 'K⁺' }, { key: 'cl', label: 'Cl⁻' },
   { key: 'albumin', label: 'Albumin' }, { key: 'glucose', label: 'Glukose' },
+  { group: 'Beregnet' },
+  { key: 'ag', label: 'Anion gap (uten K)' },
   { group: 'Oksygen' },
   { key: 'fio2', label: 'FiO2' },
 ];
@@ -218,15 +220,15 @@ export function mountBlodgass(container, ctx) {
       {
         title: 'Anion gap',
         render(body, api) {
-          const nAg = numField('Anion gap = Na − (Cl + HCO3)', 'mmol/L');
           const ch = choices([{ id: 'hoy', label: 'Høy anion gap (> 12)' }, { id: 'normal', label: 'Normal anion gap (≤ 12)' }]);
-          answerBlock(body, api, { inputs: [h('p', { class: 'hint' }, `Na ${v.na}, Cl ${v.cl}, HCO3 ${fmt(v.hco3, 1)}. Høy anion gap betyr at det finnes syrer som ikke måles direkte (laktat, ketoner, toksiner, nyresvikt).`), nAg.el, ch.el], evaluate: () => {
-            const a = ch.get(), ag = nAg.get(); if (!a || ag === null) return null;
-            const agOk = within(ag, k.step4.ag, 1.5);
-            nAg.mark(agOk);
+          const hint = k.step4.correctionApplied
+            ? `Anion gap står på arket: ${fmt(v.ag, 0)} mmol/L (Na − (Cl + HCO3), uten K). Albumin er ${v.albumin} g/L: lav albumin gir lavere gap, så korriger med +0,25 per g/L under 40 før du vurderer.`
+            : `Anion gap står på arket: ${fmt(v.ag, 0)} mmol/L (Na − (Cl + HCO3), uten K). Høy anion gap betyr at det finnes syrer som ikke måles direkte (laktat, ketoner, toksiner, nyresvikt).`;
+          answerBlock(body, api, { inputs: [h('p', { class: 'hint' }, hint), ch.el], evaluate: () => {
+            const a = ch.get(); if (!a) return null;
             const want = k.step4.high ? 'hoy' : 'normal';
             ch.lock([want]);
-            const correct = agOk && a === want;
+            const correct = a === want;
             const explain = [
               calc(`AG = ${v.na} − (${v.cl} + ${fmt(v.hco3, 1)}) = ${fmt(k.step4.ag, 1)} mmol/L`),
               P(k.step4.high ? 'Høy anion gap: det finnes umålte anioner (laktat, ketoner, sulfat/fosfat ved nyresvikt, toksiske syrer). ' : 'Normal anion gap: ingen umålte anioner av betydning. Ved metabolsk acidose betyr det tap av bikarbonat (diaré) eller tilførsel av klorid (mye NaCl). '),

@@ -882,7 +882,7 @@ export function mountRespirator(container, ctx) {
     const S = ui.situation; if (!S) return;
     const [ico, who] = WHO[msg.who] ?? ['•', msg.who];
     S.feedEl.prepend(h('div', { class: `msg ${msg.kind ?? msg.who}` }, h('span', {}, ico), h('div', {}, h('time', {}, `${clock(msg.t)} · ${who}`), msg.text)));
-    if (/host/i.test(msg.text)) audio.cough();
+    if (/host/i.test(msg.text) && msg.who !== 'handling') { audio.cough(); vent.cough(); }
     if (notify) {
       toast(`${ico} ${msg.text}`, { kind: msg.who === 'monitor' || msg.who === 'respirator' ? 'warn' : '', ms: 6000 });
       audio.notify();
@@ -903,12 +903,12 @@ export function mountRespirator(container, ctx) {
     const patient = { ...structuredClone(getProfile(def.profileId).patient), ...structuredClone(def.patient ?? {}) };
     vent.setSettings(structuredClone(def.settings));
     vent.setPatient(patient);
-    vent.setDisconnected(false); vent.setLeak(0); vent.setTriggerNoise(0);
+    vent.setDisconnected(false); vent.setLeak(0); vent.setTriggerNoise(0); vent.setArtifacts({ secretions: 0 });
     gas.setParams({ petGap: 0.5, ...(def.gas ?? gasForProfile(def.profileId)) });
     vent.reset(); vent.run(20);
     ui.lastBreathTime = vent.time;
     updateGasFromVent(); gas.settle();
-    const hooks = { getPatient: () => vent.patient, setPatient: (p) => vent.setPatient(p), getGas: () => ({ ...gas.params }), setGas: (g) => gas.setParams(g), setDisconnected: (v) => vent.setDisconnected(v), setLeak: (f) => vent.setLeak(f), setTriggerNoise: (n) => vent.setTriggerNoise(n) };
+    const hooks = { getPatient: () => vent.patient, setPatient: (p) => vent.setPatient(p), getGas: () => ({ ...gas.params }), setGas: (g) => gas.setParams(g), setDisconnected: (v) => vent.setDisconnected(v), setLeak: (f) => vent.setLeak(f), setTriggerNoise: (n) => vent.setTriggerNoise(n), setArtifacts: (a) => vent.setArtifacts(a), cough: () => { vent.cough(); audio.cough(2); } };
     const sit = createSituation(def, { hooks });
     sit.start(vent.time);
     ui.situation = { sit, def, index, feedEl: h('div', { class: 'feed' }), summary: null, decisionEl: null };
@@ -927,7 +927,7 @@ export function mountRespirator(container, ctx) {
     const S = ui.situation; if (!S) return;
     if (!S.summary) finishSituation();
     S.sit.end();
-    vent.setDisconnected(false); vent.setLeak(0); vent.setTriggerNoise(0); gas.setParams({ petGap: 0.5 });
+    vent.setDisconnected(false); vent.setLeak(0); vent.setTriggerNoise(0); vent.setArtifacts({ secretions: 0 }); gas.setParams({ petGap: 0.5 });
     ui.situation = null;
     applyProfile(ui.profileId === 'egen' ? 'normal' : ui.profileId);
     refreshAll(); renderSide();
@@ -1061,6 +1061,7 @@ export function mountRespirator(container, ctx) {
       evaluateAlarms(); updateMMP(vent.measurements); renderMsgBar(); renderMonitorPanel();
       if (ui.layout >= 3) { drawVentStatus(); drawDynamicLungText(); }
       audio.setPulse(gas.state.spo2, currentVitals().hr);
+      vent.setArtifacts({ hr: currentVitals().hr });
       audio.setPatientSounds(patientSoundLevels());
       if (ui.situation && !ui.situation.summary) {
         const S = ui.situation;

@@ -96,6 +96,17 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
   // Støy på triggersignalet (kondensvann i slangen, lekkasje, hjerteoscillasjoner): korte «flowstøt» i L/min
   // under ekspirasjonen. Er støyen større enn innstilt trigger, autotrigger respiratoren.
   let triggerNoise = 0;
+  let lastNoise = 0;
+  // Artefakter på det målte signalet (det kurvene viser): sekret gir sagtakker på flow og trykk,
+  // hjerteoscillasjoner gir små rippler ved ekspirasjonsslutt. Fysikken i lungemodellen påvirkes ikke.
+  const artifacts = { secretions: 0, cardiac: 0.5, hr: 80 };
+  // Hoste: kortvarig ekspiratorisk muskeltrykk (negativ Pmus) som gir trykkspiss i volumkontroll og flowstøt i ekspirasjon
+  let coughUntil = -Infinity, coughStrength = 0;
+  const COUGH_DURATION = 0.35;
+  // Målt volum: integrert fra målt flow (ekspirasjonsflow forbi lekkasje måles ikke), nullstilles ved pustestart.
+  // Gir det klassiske lekkasjetegnet på volumkurven: den vender ikke tilbake til null.
+  let measVolume = 0;
+  const saw = (time, freq) => 2 * ((time * freq) % 1) - 1;
   let noiseSeed = 12345;
   let noiseNext = Infinity, noiseEnd = -Infinity;
   const noiseRand = () => { noiseSeed = (noiseSeed * 1103515245 + 12345) & 0x7fffffff; return noiseSeed / 0x7fffffff; };
@@ -104,6 +115,24 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
     if (noiseNext === Infinity) noiseNext = t + 0.8 + noiseRand() * 1.2;
     if (t >= noiseNext) { noiseEnd = noiseNext + 0.25; noiseNext = noiseEnd + 1.2 + noiseRand() * 1.5; }
     return t < noiseEnd ? triggerNoise : 0;
+  }
+  /** Flow og trykk slik sensoren «ser» dem: fysikkens verdier pluss artefakter. */
+  function measuredSignals(flow, paw) {
+    let flowM = flow < 0 ? flow * (1 - leak) : flow;
+    let pawM = paw;
+    const a = artifacts;
+    if (a.secretions > 0) {
+      const z = saw(t, 11 + 4 * a.secretions);
+      flowM += a.secretions * (0.07 * Math.abs(flow) + 0.015) * z;
+      pawM += a.secretions * (1.2 * Math.min(1, Math.abs(flow) / 0.5) + 0.3) * z;
+    }
+    if (a.cardiac > 0 && phase === 'exp' && Math.abs(flow) < 0.06) {
+      const c = Math.sin(2 * Math.PI * (a.hr / 60) * t);
+      flowM += a.cardiac * 0.012 * c;
+      pawM += a.cardiac * 0.25 * c;
+    }
+    if (lastNoise > 0 && phase === 'exp') { flowM += lastNoise / 60; pawM += 0.3 * (lastNoise / 4); }
+    return { flowM, pawM };
   }
   let apvPinsp = 15; // adaptiv ΔPinsp (over PEEP) i APVcmv, justeres pust for pust
   let apvLimited = false; // APV ville gått høyere enn Plimit tillater
@@ -136,8 +165,9 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
   }
 
   function pmusNow() {
-    if (!p.effort || p.effort.amplitude <= 0) return 0;
-    return pmusAt(t - effortStart, p.effort);
+    let pm = (!p.effort || p.effort.amplitude <= 0) ? 0 : pmusAt(t - effortStart, p.effort);
+    if (t < coughUntil) { pm -= coughStrength * Math.sin((Math.PI * (coughUntil - t)) / COUGH_DURATION); if (breath) breath.cough = true; }
+    return pm;
   }
 
   function scheduleEffortAfter(time) {
@@ -240,7 +270,9 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
 
   function updateMeasurements(b) {
     const m = measurements;
-    const peepTotal = Math.max(b.peepSet, b.endExpPalv);
+    // hoste i pusten gjør alveolartrykket ved ekspirasjonsslutt ubrukelig som AutoPEEP-estimat: behold forrige
+    const peepTotal = b.cough && lastBreath?.peepTotalEst != null ? lastBreath.peepTotalEst : Math.max(b.peepSet, b.endExpPalv);
+    b.peepTotalEst = peepTotal;
     m.mode = s.mode;
     m.breathType = b.type;
     m.cycleReason = b.cycleReason;
@@ -287,7 +319,7 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
     if (disconnected) return false; // ingen flow/trykk å trigge på i en åpen krets
     if (t - expStart < MIN_EXP_BEFORE_TRIGGER) return false;
     const pdrop = Math.max(0, pmus - (lung.elasticPressure - s.peep)); // trykk pasienten trekker under PEEP
-    const noise = noiseNow(); // L/min, 0 uten kondens/lekkasje
+    const noise = lastNoise; // L/min, 0 uten kondens/lekkasje
     if (pdrop <= 0 && noise <= 0) return false;
     const r = lung.state.resistance;
     if (s.trigger.type === 'pressure') return pdrop + (noise / 60) * r >= s.trigger.value;
@@ -301,6 +333,7 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
   }
 
   function step() {
+    lastNoise = noiseNow();
     // pasientinnsats
     if (t >= effortNext) {
       effortStart = t;
@@ -432,9 +465,12 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
     }
 
     t += dt;
+    const { flowM, pawM } = measuredSignals(lung.state.flow, lung.state.paw);
+    if (breath && breath.start === t - dt) measVolume = 0; // ny pust: nullstill målt volum
+    if (breath && !disconnected) measVolume = Math.max(0, measVolume + flowM * dt * 1000);
     sample = {
-      t, paw: lung.state.paw, flow: lung.state.flow,
-      volume: breath ? lung.state.volume - breath.vStart : 0,
+      t, paw: pawM, flow: flowM,
+      volume: breath ? measVolume : 0,
       palv: lung.state.palv, pmus,
       phase: hold.active ? `hold-${hold.active}` : phase,
       breathType: breath?.type ?? null,
@@ -460,6 +496,11 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
     setDisconnected(v) { disconnected = !!v; },
     get leak() { return leak; },
     get triggerNoise() { return triggerNoise; },
+    get artifacts() { return { ...artifacts }; },
+    /** Artefakter på kurvene: { secretions 0–1, cardiac 0–1, hr }. */
+    setArtifacts(partial) { Object.assign(artifacts, partial); },
+    /** Hoste: ekspiratorisk muskeltrykk (cmH2O) i 0,35 s. */
+    cough(strength = 25) { coughUntil = t + COUGH_DURATION; coughStrength = strength; },
     /** Støy på triggersignalet i L/min (0 = av). Brukes av caser med kondensvann eller lekkasje i kretsen. */
     setTriggerNoise(lpm) { triggerNoise = Math.max(0, lpm || 0); if (triggerNoise <= 0) { noiseNext = Infinity; noiseEnd = -Infinity; } },
     setLeak(fraction) { leak = Math.min(0.9, Math.max(0, fraction || 0)); },
@@ -528,6 +569,7 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
       effortStart = -Infinity; effortNext = Infinity; backupActive = false; lastBreathStart = 0;
       hold.requested = null; hold.active = null; hold.released = false; holdResult = null;
       history.length = 0;
+      coughUntil = -Infinity; coughStrength = 0; measVolume = 0; lastNoise = 0; noiseNext = Infinity; noiseEnd = -Infinity;
       apvPinsp = 15;
       lung.reset(p.compliance * s.peep);
       scheduleEffortAfter(0);

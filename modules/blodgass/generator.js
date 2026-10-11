@@ -129,7 +129,9 @@ export function generateCase({ level = null, scenarioId = null, weights = null, 
   po2 = Math.min(po2, pao2Alv - uni(rng, 0.7, 1.5));
   po2 = round(Math.max(3.5, po2), 1);
 
-  const values = { ph, pco2, po2, hco3: hco3Disp, be, lactate, na, k, cl, albumin, glucose, fio2 };
+  // Anion gap (uten K) skrives ut på blodgassarket slik analysatoren gjør: Na − (Cl + HCO3)
+  const ag = Math.round((na - (cl + hco3Disp)) * 10) / 10;
+  const values = { ph, pco2, po2, hco3: hco3Disp, be, lactate, na, k, cl, albumin, glucose, fio2, ag };
   const key = { ...interpret(values, { primary: sc.primary, chronic: sc.chronic ?? null }), causes: sc.causes, agCorrTarget: agCorr };
   const causeOptions = shuffle(rng, [...sc.causes, ...sc.distractors]).map((id) => ({ id, label: CAUSES[id] }));
   const kjonn = sex === 'K' ? 'kvinne' : 'mann';
