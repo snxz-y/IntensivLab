@@ -32,8 +32,11 @@ Vinduene følger C6: lyse med faner til venstre, ringknapper som blir gule når 
   ventilasjon og Noninvasiv. Gjeldende modus er grønn, grå modi finnes på C6 men er ikke simulert.
   Velg modus, trykk Bekreft, sett kontrollene for den nye modusen, og trykk Bekreft igjen før den
   tas i bruk (Avbryt forkaster alt).
+- **Simulerte modi**: APVcmv (adaptiv trykkontroll mot Vt, ingen pause), (S)CMV (konstant flow
+  med valgfri inspiratorisk pause), PCV+, SPONT og DuoPAP (P high, T high og trykkstøtte på PEEP-nivå).
 - **Kontroller**: fanene Grunn (I:E eller TI, Rate, P-ramp, Vt/Pcontrol/Psupport, PEEP/CPAP,
-  trigger, Oksygen), Mer (apné-backup) og Pasient (kjønn og høyde gir IBW). Nederst står TI, TE
+  trigger F/P/Av, Oksygen), Mer (apné-backup) og Pasient. Pasientkategori som på C6: «Voksen/barn»
+  over 15 kg med kjønn og høyde (IBW), «Barn/nyfødt» under 15 kg med kroppsvekt. Nederst står TI, TE
   og Vt/IBW. I gjeldende modus virker endringer fra neste pust.
 - **Alarmvisning**: som på C6 blir verdien rød (høy prioritet) eller gul (middels) i MMP-flisen,
   grensen som er brutt farges, og flisen får en farget stolpe i høyre kant. Meldingslinjen viser
@@ -61,7 +64,7 @@ ikke når du justerer den:
   gassutveksling (shunt, rekrutterbarhet). Høyde og kjønn stilles på respiratoren.
 - **Caser**: 19 falske pasienter, nummerert «Case 1» til «Case 19» så navnet ikke røper
   hva som skjer (det vises først i oppsummeringen). Case 14–19 har lett sederte pasienter som
-  trigger selv, i SPONT, (S)CMV+ og PCV+: utmattelse under avvenning, autotrigging av
+  trigger selv, i SPONT, APVcmv og PCV+: utmattelse under avvenning, autotrigging av
   kondensvann, overassistanse, pasient som slutter å trigge etter mer sedasjon, fallende
   tidevolum i PCV+ ved ARDS, og sekret hos KOLS-pasient i trykkstøtte. Innstillingene og
   tiltakene bygger på kildene i KILDER.md. Du får pasientinformasjon,
@@ -91,7 +94,7 @@ ikke når du justerer den:
   synkroni og avvenning). Før hver endring må du forutsi hva som skjer; fasit simuleres i en
   kopi av respiratoren. Løste oppgaver merkes ikke.
 
-Respiratoren starter alltid i standardoppsett: (S)CMV+ (adaptiv trykkregulering mot
+Respiratoren starter alltid i standardoppsett: APVcmv (adaptiv trykkregulering mot
 volummål, som Hamiltons APVcmv), Vt 8 ml/kg IBW, Rate 15, PEEP 5, Oksygen 40 %, I:E 1:2,
 P-ramp 50 ms, flowtrigger 2 l/min. Plimit = Pmax − 10 begrenser levert trykk, og ved Pmax
 åpnes ekspirasjonsventilen, slik C6 gjør. Lyd (respiratorens pustelyd som følger flowen,

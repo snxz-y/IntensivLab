@@ -251,7 +251,7 @@ test('overassistanse: Vt over 8 ml/kg og lav frekvens; lavere trykkstøtte løse
   assert.ok(untilResolved(R, 60));
 });
 
-test('(S)CMV+: når pasienten slutter å trigge, faller frekvensen til innstilt rate; rate opp eller sedasjon ned løser', () => {
+test('APVcmv: når pasienten slutter å trigge, faller frekvensen til innstilt rate; rate opp eller sedasjon ned løser', () => {
   let R = rig(SITUATIONS.find((s) => s.id === 'scmv-slutter-trigge'));
   R.vent.run(30); R.sit.start(R.vent.time); R.run(60);
   assert.equal(Math.round(R.vent.measurements.fTotal), 18);

@@ -175,7 +175,7 @@ test('trykkbegrensning: VC leverer mindre volum når Paw ville overstige Plimit,
   assert.ok(b.measurements.ppeak <= 20.5);
 });
 
-test('(S)CMV+ (APVcmv): trykket justeres pust for pust til innstilt Vt nås', () => {
+test('APVcmv: trykket justeres pust for pust til innstilt Vt nås', () => {
   const v = createVentilator({ settings: { mode: 'APVCMV', vt: 450, rate: 14, peep: 6, pmax: 40 }, patient: { compliance: 40, resistance: 10 } });
   v.run(60);
   const m = { ...v.measurements };
@@ -247,4 +247,30 @@ test('kurveartefakter: sekret gir sagtakker på målt flow og trykk, lekkasje gi
   for (let i = 0; i < 2000; i++) { const smp = v.step(); if (smp.phase === 'insp' && smp.volume > 150) { v.cough(25); break; } }
   let pk2 = 0; for (let i = 0; i < 80; i++) { const smp = v.step(); pk2 = Math.max(pk2, smp.paw); }
   assert.ok(pk2 > before + 8, `hoste gir trykkspiss (${before.toFixed(0)} → ${pk2.toFixed(0)})`);
+});
+
+test('DuoPAP: obligatoriske overganger til P high med innstilt frekvens, spontane pust med trykkstøtte imellom', () => {
+  const quiet = createVentilator({ settings: { mode: 'DUOPAP', phigh: 20, peep: 6, rate: 12, ti: 1.2, timingMode: 'ti', psupport: 8 }, patient: { effort: { amplitude: 0, rate: 14, duration: 1 } } });
+  quiet.run(60);
+  assert.ok(Math.abs(quiet.measurements.fTotal - 12) < 0.6);
+  assert.ok(Math.abs(quiet.measurements.ppeak - 20) < 1.5, `Ppeak ≈ P high (${quiet.measurements.ppeak})`);
+  const active = createVentilator({ settings: { mode: 'DUOPAP', phigh: 20, peep: 6, rate: 12, ti: 1.2, timingMode: 'ti', psupport: 8 }, patient: { effort: { amplitude: 4, rate: 20, duration: 0.9 } } });
+  active.run(60);
+  assert.ok(active.measurements.fSpont > 4, `spontane pust (${active.measurements.fSpont})`);
+  assert.ok(active.measurements.fTotal > 16);
+});
+
+test('Trigger av: pasienten kan ikke utløse pust i kontrollert modus; SPONT tvinger flowtrigger', () => {
+  const v = createVentilator({ settings: { mode: 'PCV', rate: 12, trigger: { type: 'off', value: 2 } }, patient: { effort: { amplitude: 5, rate: 25, duration: 0.9 } } });
+  v.run(60);
+  assert.ok(Math.abs(v.measurements.fTotal - 12) < 0.6, `fTotal ${v.measurements.fTotal}`);
+  v.setSettings({ mode: 'SPONT' });
+  assert.equal(v.settings.trigger.type, 'flow');
+});
+
+test('Pasientkategori Barn/nyfødt: vekten erstatter IBW fra høyde', () => {
+  const v = createVentilator({ settings: { mode: 'APVCMV', vt: 60, rate: 30, peep: 5 }, patient: { group: 'neo', weightKg: 8, height: 70, compliance: 6, resistance: 30 } });
+  v.run(20);
+  assert.equal(v.measurements.ibw, 8);
+  assert.ok(Math.abs(v.measurements.vtPerKg - v.measurements.vte / 8) < 0.2);
 });

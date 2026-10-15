@@ -35,7 +35,7 @@ export const MEASURES = {
 const WHY = {
   vt: {
     pplat: 'Pplat = PEEPtot + Vt/C. Med uendret compliance gir større Vt høyere platåtrykk, og mindre Vt lavere.',
-    pinsp: 'I (S)CMV+ (APV) justerer respiratoren trykket til Vt nås: høyere Vt krever høyere ΔPinsp (≈ Vt/C).',
+    pinsp: 'I APVcmv (APV) justerer respiratoren trykket til Vt nås: høyere Vt krever høyere ΔPinsp (≈ Vt/C).',
     ppeak: 'Ppeak følger platået (pluss R·flow). Større Vt gir høyere trykk.',
     drivingPressure: 'Drivtrykk = Vt/C (= Pplat − PEEPtot). Det endres i takt med Vt så lenge compliance er lik.',
     expMinVol: 'Minuttvolum = Vt · f. Endrer du Vt uten å endre frekvens, endres minuttvolumet tilsvarende.',
@@ -55,7 +55,7 @@ const WHY = {
     pinsp: 'ΔPinsp settes over PEEP og bestemmes av Vt/C, så den er omtrent uendret når PEEP endres (modellen har lineær compliance).',
     drivingPressure: 'Drivtrykk = Pplat − PEEPtot. Begge stiger like mye, så drivtrykket er uendret så lenge Vt og compliance er de samme. (I virkeligheten kan PEEP rekruttere og bedre compliance, men det er ikke med i trykkmodellen.)',
     pmean: 'Middeltrykket løftes omtrent like mye som PEEP.',
-    vte: 'I (S)CMV+ er Vt målet og holdes. I PCV+ er ΔPcontrol satt over PEEP, så drivtrykket og dermed Vt er også uendret.',
+    vte: 'I APVcmv er Vt målet og holdes. I PCV+ er ΔPcontrol satt over PEEP, så drivtrykket og dermed Vt er også uendret.',
   },
   ie: {
     te: 'I:E fordeler syklustiden mellom inspirasjon og ekspirasjon. Mer tid til E gir lengre TE.',
@@ -127,14 +127,14 @@ export function settingLabel(key) {
     vt: 'Vt', rate: 'Rate', peep: 'PEEP/CPAP', ie: 'I:E', ti: 'TI', pcontrol: 'ΔPcontrol', psupport: 'ΔPsupport',
     tip: 'Pause', flowPattern: 'Flowmønster', pramp: 'P-ramp', ets: 'ETS', fio2: 'Oksygen', trigger: 'Trigger',
     triggerValue: 'Flowtrigger', pmax: 'Pmax', mode: 'Modus', tiMax: 'TI max', apneaTime: 'Apnétid', timingMode: 'Tidsinnstilling',
-    backupRate: 'Backup rate', backupPcontrol: 'Backup ΔPinsp',
+    backupRate: 'Backup rate', backupPcontrol: 'Backup ΔPinsp', phigh: 'P high', weightKg: 'Vekt',
   }[key] ?? key;
 }
 
 export function formatSettingValue(key, value) {
   if (key === 'ie') return value.i === 1 ? `1:${value.e}` : `${value.i}:1`;
   if (key === 'flowPattern') return value === 'decel' ? 'deselererende' : 'firkant';
-  if (key === 'trigger') return `${value.value} ${value.type === 'flow' ? 'L/min' : 'cmH2O'}`;
+  if (key === 'trigger') return value.type === 'off' ? 'av' : `${value.value} ${value.type === 'flow' ? 'L/min' : 'cmH2O'}`;
   return String(value);
 }
 
@@ -203,7 +203,7 @@ export const TASKS = [
     id: 'lungebeskyttende', cat: 'lunge',
     title: 'Still inn lungebeskyttende ventilasjon',
     profileId: 'ards',
-    vignette: 'Kvinne, 170 cm, intubert for moderat ARDS etter pneumoni. Hun er dypt sedert og puster ikke selv. Respiratoren står i (S)CMV+ med Vt 600 ml, rate 14 og PEEP 5.',
+    vignette: 'Kvinne, 170 cm, intubert for moderat ARDS etter pneumoni. Hun er dypt sedert og puster ikke selv. Respiratoren står i APVcmv med Vt 600 ml, rate 14 og PEEP 5.',
     goal: 'Vt 6 ml/kg IBW, Pplateau ≤ 30 cmH2O og drivtrykk ≤ 15 cmH2O, uten at minuttvolumet faller under 6 L/min. Bruk inspiratorisk hold for å måle Pplateau.',
     settings: { mode: 'APVCMV', vt: 600, rate: 14, peep: 5, timingMode: 'ie', ie: ie(1, 2), fio2: 60 },
     focus: ['pplat', 'drivingPressure', 'vte', 'expMinVol', 'autoPeep'],
@@ -214,7 +214,7 @@ export const TASKS = [
     id: 'drivtrykk', cat: 'lunge',
     title: 'Få ned drivtrykket',
     profileId: 'ards',
-    vignette: 'Mann, 180 cm, ARDS dag 2. Ventileres i (S)CMV+ med Vt 520 ml og PEEP 8. Legen ber deg få drivtrykket under 15 uten at minuttvolumet faller under 7 L/min.',
+    vignette: 'Mann, 180 cm, ARDS dag 2. Ventileres i APVcmv med Vt 520 ml og PEEP 8. Legen ber deg få drivtrykket under 15 uten at minuttvolumet faller under 7 L/min.',
     goal: 'Drivtrykk ≤ 15 cmH2O og ExpMinVol ≥ 7 L/min. Pplateau ≤ 30.',
     settings: { mode: 'APVCMV', vt: 520, rate: 14, peep: 8, timingMode: 'ie', ie: ie(1, 2), fio2: 50 },
     patientOverride: { compliance: 22, height: 180, sex: 'M' },
@@ -251,7 +251,7 @@ export const TASKS = [
     id: 'topptrykk', cat: 'feil',
     title: 'Finn årsaken til høyt trykk',
     profileId: 'normal',
-    vignette: 'Mann, 178 cm, intubert etter hodeskade. Respiratoren står i (S)CMV+. ΔPinsp har steget, og høytrykksalarmen har begynt å gå. Pasienten er sedert.',
+    vignette: 'Mann, 178 cm, intubert etter hodeskade. Respiratoren står i APVcmv. ΔPinsp har steget, og høytrykksalarmen har begynt å gå. Pasienten er sedert.',
     goal: 'Finn ut om det høye trykket skyldes økt resistance (sekret, bronkospasme, knekk på tuben) eller redusert compliance (pneumothorax, atelektase, væske). Bruk inspiratorisk hold og se på forskjellen mellom Ppeak og Pplateau.',
     settings: { mode: 'APVCMV', vt: 500, rate: 14, peep: 5, timingMode: 'ie', ie: ie(1, 2), fio2: 40, pmax: 45 },
     focus: ['ppeak', 'pplat', 'drivingPressure', 'pinsp'],
@@ -285,9 +285,9 @@ export const TASKS = [
   },
   {
     id: 'vt-lav', cat: 'feil',
-    title: 'Alarm: Vt lav i (S)CMV+',
+    title: 'Alarm: Vt lav i APVcmv',
     profileId: 'normal',
-    vignette: 'Kvinne, 168 cm, i (S)CMV+ med Vt 450. Alarmen «Lavt tidevolum» og «Trykkbegrensning» går, og VTE ligger på 280 ml. Pmax står på 30.',
+    vignette: 'Kvinne, 168 cm, i APVcmv med Vt 450. Alarmen «Lavt tidevolum» og «Trykkbegrensning» går, og VTE ligger på 280 ml. Pmax står på 30.',
     goal: 'Forstå hvorfor Vt ikke nås, og få VTE opp til innstilt Vt (±10 %) uten å overskride Pplateau 30. Sjekk alarmgrensene.',
     settings: { mode: 'APVCMV', vt: 450, rate: 15, peep: 8, timingMode: 'ie', ie: ie(1, 2), fio2: 40, pmax: 30 },
     patientOverride: { compliance: 28, resistance: 14, resistanceExp: 14, height: 168, sex: 'K' },
@@ -312,7 +312,7 @@ export const TASKS = [
     id: 'autotrigging', cat: 'feil',
     title: 'Autotrigging',
     profileId: 'normal',
-    vignette: 'Mann, 182 cm, sedert i (S)CMV+ rate 12. fTotal viser 26 og trykkurven har små dupp før hver pust. Flowtriggeren står på 0,5 l/min.',
+    vignette: 'Mann, 182 cm, sedert i APVcmv rate 12. fTotal viser 26 og trykkurven har små dupp før hver pust. Flowtriggeren står på 0,5 l/min.',
     goal: 'Få fTotal ned til innstilt rate (12 ± 1) uten å endre sedasjon. Hint: små svingninger (hjerteslag, kondens) kan trigge en for følsom trigger.',
     settings: { mode: 'APVCMV', vt: 520, rate: 12, peep: 5, timingMode: 'ie', ie: ie(1, 2), fio2: 35, trigger: { type: 'flow', value: 0.5 } },
     patientOverride: { effort: { amplitude: 1.2, rate: 26, duration: 0.5 }, height: 182, sex: 'M' },
@@ -345,7 +345,7 @@ export const TASKS = [
     id: 'autopeep', cat: 'obstruktiv',
     title: 'Fjern auto-PEEP',
     profileId: 'obstruktiv',
-    vignette: 'Mann, 178 cm, KOLS-eksaserbasjon, intubert og sedert. (S)CMV+ med rate 24 og I:E 1:1. Ekspirasjonsflowen når ikke null før neste pust.',
+    vignette: 'Mann, 178 cm, KOLS-eksaserbasjon, intubert og sedert. APVcmv med rate 24 og I:E 1:1. Ekspirasjonsflowen når ikke null før neste pust.',
     goal: 'Mål auto-PEEP med ekspiratorisk hold, og endre innstillingene så AutoPEEP blir under 1 cmH2O. Hold ExpMinVol over 5 L/min og Pplateau under 30.',
     settings: { mode: 'APVCMV', vt: 500, rate: 24, peep: 5, timingMode: 'ie', ie: ie(1, 1), fio2: 40 },
     patientOverride: noEffort,
@@ -406,7 +406,7 @@ export const TASKS = [
     id: 'bytt-til-spont', cat: 'modus',
     title: 'Pasienten våkner: bytt modus',
     profileId: 'ards',
-    vignette: 'Kvinne, 170 cm, ARDS i bedring, nå våken med god egen drive. Hun ligger i (S)CMV+ rate 14 og trigger langt flere pust enn innstilt; trykkurven dupper.',
+    vignette: 'Kvinne, 170 cm, ARDS i bedring, nå våken med god egen drive. Hun ligger i APVcmv rate 14 og trigger langt flere pust enn innstilt; trykkurven dupper.',
     goal: 'Bytt til SPONT med passende ΔPsupport: Vt 6–8 ml/kg IBW, fTotal ≤ 28, Ppeak ≤ 30.',
     settings: { mode: 'APVCMV', vt: 400, rate: 14, peep: 8, timingMode: 'ie', ie: ie(1, 2), fio2: 40 },
     patientOverride: { compliance: 38, resistance: 10, resistanceExp: 10, effort: { amplitude: 9, rate: 24, duration: 0.8 } },
@@ -417,7 +417,7 @@ export const TASKS = [
     id: 'ti-ie', cat: 'modus',
     title: 'Tidsinnstilling: TI, I:E og rate',
     profileId: 'normal',
-    vignette: 'Mann, 180 cm, (S)CMV+ rate 15 med I:E 1:2. Legen ønsker TI på 0,9 s og TE på minst 3 s.',
+    vignette: 'Mann, 180 cm, APVcmv rate 15 med I:E 1:2. Legen ønsker TI på 0,9 s og TE på minst 3 s.',
     goal: 'TI 0,85–0,95 s og TE ≥ 3,0 s, med ExpMinVol ≥ 6 L/min. Du kan bruke TI direkte eller I:E og rate.',
     settings: { mode: 'APVCMV', vt: 500, rate: 15, peep: 5, timingMode: 'ie', ie: ie(1, 2), fio2: 35 },
     patientOverride: { ...noEffort, height: 180, sex: 'M' },
@@ -448,15 +448,15 @@ export const TASKS = [
   },
   {
     id: 'apv-forsta', cat: 'modus',
-    title: 'Forstå (S)CMV+: hva skjer når lungen endrer seg?',
+    title: 'Forstå APVcmv: hva skjer når lungen endrer seg?',
     profileId: 'normal',
-    vignette: 'Kvinne, 168 cm, i (S)CMV+ Vt 420. Se på ΔPinsp i Monitorering. Compliance faller (atelektase) i løpet av oppgaven. Observer hvordan respiratoren reagerer, og svar på spørsmålet.',
+    vignette: 'Kvinne, 168 cm, i APVcmv Vt 420. Se på ΔPinsp i Monitorering. Compliance faller (atelektase) i løpet av oppgaven. Observer hvordan respiratoren reagerer, og svar på spørsmålet.',
     goal: 'Svar riktig på spørsmålet, og sørg for at VTE holdes på 6 ml/kg ± 10 % og Pplateau ≤ 30 etter endringen.',
     settings: { mode: 'APVCMV', vt: 420, rate: 16, peep: 6, timingMode: 'ie', ie: ie(1, 2), fio2: 40 },
     patientOverride: { compliance: 22, resistance: 10, resistanceExp: 10, ...noEffort, height: 168, sex: 'K' },
     focus: ['pinsp', 'pplat', 'vte', 'drivingPressure'],
     question: {
-      text: 'Hva gjør (S)CMV+ (APVcmv) når compliance faller?',
+      text: 'Hva gjør APVcmv når compliance faller?',
       options: [
         { id: 'oker', label: 'Øker ΔPinsp pust for pust til Vt nås igjen (til Plimit)' },
         { id: 'holder', label: 'Holder trykket og lar Vt falle' },
@@ -483,7 +483,7 @@ export const TASKS = [
     id: 'co2-hoy', cat: 'gass',
     title: 'Høy PetCO2: øk ventilasjonen riktig',
     profileId: 'normal',
-    vignette: 'Kvinne, 170 cm, sedert i (S)CMV+. PetCO2 har krøpet opp til 7,5 kPa (PaCO2 ca. 8). Respiratoren står med Vt 350 og rate 10.',
+    vignette: 'Kvinne, 170 cm, sedert i APVcmv. PetCO2 har krøpet opp til 7,5 kPa (PaCO2 ca. 8). Respiratoren står med Vt 350 og rate 10.',
     goal: 'PaCO2 (modell) 4,7–6,0 kPa med Vt ≤ 8 ml/kg IBW, Pplateau ≤ 30 og AutoPEEP < 1. Gi gassmodellen 3–4 minutter (bruk hastighet 4×).',
     settings: { mode: 'APVCMV', vt: 350, rate: 10, peep: 5, timingMode: 'ie', ie: ie(1, 2), fio2: 35 },
     patientOverride: { ...noEffort, height: 170, sex: 'K' },
@@ -506,7 +506,7 @@ export const TASKS = [
     id: 'ineffektiv-trigging', cat: 'avvenning',
     title: 'Pasienten får ikke trigget',
     profileId: 'normal',
-    vignette: 'Kvinne, 165 cm, våken i (S)CMV+ rate 10. Du ser små dupp i trykkurven mellom pustene, men fTotal er fortsatt 10. Flowtriggeren står på 12 l/min.',
+    vignette: 'Kvinne, 165 cm, våken i APVcmv rate 10. Du ser små dupp i trykkurven mellom pustene, men fTotal er fortsatt 10. Flowtriggeren står på 12 l/min.',
     goal: 'La pasienten trigge: fTotal 15–22 (hennes egen drive er ca. 18/min), uten autotrigging.',
     settings: { mode: 'APVCMV', vt: 420, rate: 10, peep: 5, timingMode: 'ie', ie: ie(1, 2), fio2: 35, trigger: { type: 'flow', value: 12 } },
     patientOverride: { effort: { amplitude: 4, rate: 18, duration: 0.9 }, height: 165, sex: 'K' },

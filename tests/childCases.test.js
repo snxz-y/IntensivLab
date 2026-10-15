@@ -115,3 +115,30 @@ test('effortFn: nevromuskulær pasient roer pusten når støtten er nok', () => 
   R.vent.setSettings({ psupport: 13 }); R.run(60);
   assert.ok(R.vent.measurements.fTotal < fBefore - 8, `frekvensen faller (${fBefore} → ${R.vent.measurements.fTotal})`);
 });
+
+test('astma: (S)CMV med firkantflow og pause løser også, og gir teori om platåtrykk', () => {
+  const R = rig('barn-astma');
+  R.run(90); R.toJuster();
+  R.vent.setSettings({ mode: 'SCMV', flowPattern: 'square', tip: 10, vt: 190, rate: 12, timingMode: 'ie', ie: { i: 1, e: 4 } });
+  assert.ok(R.until(300), 'løses i (S)CMV');
+  assert.ok(R.vent.measurements.pplat !== null && R.vent.measurements.pplat < 30, `Pplat ${R.vent.measurements.pplat}`);
+  assert.ok(R.theory('riktig').some((m) => m.text.includes('platåtrykk')));
+});
+
+test('barn under 15 kg: kategori Barn/nyfødt med vekt brukes for Vt/kg', () => {
+  for (const id of ['barn-bronkiolitt', 'barn-lekkasje-autotrigging', 'barn-ekstubasjonstest', 'barn-hyperoksi']) {
+    const R = rig(id);
+    assert.equal(R.vent.patient.group, 'neo', id);
+    assert.ok(R.vent.patient.weightKg < 15, id);
+    R.run(5);
+    assert.equal(R.vent.measurements.ibw, R.vent.patient.weightKg, `${id}: Vt/kg regnes per kg kroppsvekt`);
+  }
+});
+
+test('nevromuskulær: BiPAP-teori fra LTMV-metodeboka etter riktig justering', () => {
+  const R = rig('barn-nevromuskulaer');
+  R.run(120); R.toJuster();
+  R.vent.setSettings({ psupport: 13 });
+  assert.ok(R.until(300));
+  assert.ok(R.theory('info').some((m) => m.text.includes('BiPAP')));
+});

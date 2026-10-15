@@ -115,6 +115,15 @@ export function idealBodyWeightHamilton(heightCm, sex) {
   return Math.max(0, ibw);
 }
 
+/**
+ * Vekten respiratoren regner per kilo med. Kategori «voksen/barn» (over 15 kg): IBW fra høyde og kjønn.
+ * Kategori «barn/nyfødt» (under 15 kg, group 'neo'): innlagt kroppsvekt (Hamilton-C6; lokal metodebok).
+ */
+export function patientIbw(p) {
+  if (p && p.group === 'neo' && p.weightKg > 0) return p.weightKg;
+  return idealBodyWeightHamilton(p.height, p.sex);
+}
+
 /** Ideell kroppsvekt for barn (Traub–Kichen 1983), kg. */
 export function idealBodyWeightChild(heightCm) {
   return 2.396 * Math.exp(0.01863 * heightCm);

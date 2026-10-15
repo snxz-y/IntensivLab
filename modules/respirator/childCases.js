@@ -12,7 +12,10 @@
  *  - DKA: minuttvolumet etter intubasjon må matche pasientens kompensatoriske hyperventilering; aggressiv
  *    hyperventilering er forbundet med dårligere utfall ved hjerneødem (Marcin et al., J Pediatr 2002).
  *  - Frekvens etter alder: 2–6 år ca. 20–30, 6–12 år ca. 20–25 som utgangspunkt (pediatriske oppslagsverk).
- *  - IBW for barn: Traub–Kichen 1983 (se core/physiology/respiratory.js).
+ *  - IBW for barn: Traub–Kichen 1983 (se core/physiology/respiratory.js). Barn under 15 kg: kategori «Barn/nyfødt»
+ *    med kroppsvekt (lokal metodebok «Hamilton C6 – oversikt»).
+ *  - Metodebok «Barn med behov for LTMV» v1.2 (nasjonal, 21.09.2024; bygger på ERS statement 2022): BiPAP ved
+ *    nevromuskulær sykdom, Vt 6–10 ml/kg, backup-frekvens 2–3 under egen, kort stigetid, hypoventilasjon PtcCO2 > 6,7 kPa.
  * Effektstørrelsene (endringer i compliance, resistance, shunt) er pedagogiske valg, UVERIFISERT.
  */
 
@@ -48,6 +51,7 @@ export const CHILD_SITUATIONS = [
       teach: [
         { kind: 'obs', when: ({ m }) => m.pplat > 28, text: 'Obs: Pplateau er over 28 cmH2O. PALICC-2 anbefaler Pplateau ≤ 28 og drivtrykk ≤ 15 cmH2O hos barn.' },
         { when: ({ patient }) => patient && patient.height >= 110 && patient.height <= 122, text: 'Riktig! På Hamilton styrer høyden IBW. 116 cm gir IBW ≈ 21 kg, og Vt/IBW, alarmgrenser og startverdier bygger på den. Feil høyde gir feil Vt.' },
+        { kind: 'info', when: ({ patient }) => patient && patient.height >= 110 && patient.height <= 122, text: 'Over 15 kg brukes kategorien «Voksen/barn» med kjønn og høyde, som her. Under 15 kg brukes «Barn/nyfødt», der du legger inn kroppsvekt (lokal metodebok, Hamilton C6).' },
         { when: ({ m, patient }) => patient && patient.height <= 122 && vtOk(m), text: 'Riktig! Barn ventileres med Vt 6–8 ml/kg IBW (PALICC-2). For ham er det ca. 125–165 ml.' },
         { when: ({ m, settings }) => settings.rate >= 18 && settings.rate <= 26 && m.vtPerKg > 0 && m.vtPerKg <= 8.5, text: 'Riktig! Barn trenger høyere frekvens enn voksne. For en seksåring er 20–25 per minutt et vanlig utgangspunkt.' },
         { kind: 'info', when: ({ m, patient }) => patient && patient.height <= 122 && vtOk(m), text: 'Husk alarmgrensene: de ble satt etter voksenvolumene, så «Lavt tidevolum» kan gå selv om Vt nå er riktig. Åpne Alarmer og trykk «Auto», eller sett grensene for et barn på 21 kg.' },
@@ -88,7 +92,7 @@ export const CHILD_SITUATIONS = [
   {
     id: 'barn-pards-vt', pediatric: true,
     title: 'PARDS: for høyt tidevolum og platåtrykk',
-    vignette: 'Gutt, 9 år, 133 cm. Influensapneumoni med PARDS. Ventileres i (S)CMV+ med Vt 260 ml, frekvens 20, PEEP 8, O2 45 %. Sedert.',
+    vignette: 'Gutt, 9 år, 133 cm. Influensapneumoni med PARDS. Ventileres i APVcmv med Vt 260 ml, frekvens 20, PEEP 8, O2 45 %. Sedert.',
     profileId: 'normal', patient: { height: 133, sex: 'M', compliance: 22, resistance: 15, resistanceExp: 16, effort: { amplitude: 0, rate: 20, duration: 0.9 } },
     settings: { mode: 'APVCMV', vt: 260, rate: 20, peep: 8, fio2: 45, timingMode: 'ie', ie: { i: 1, e: 2 }, pramp: 50, trigger: { type: 'flow', value: 2 }, pmax: 40 },
     gas: { shunt: 0.12, recruitability: 0.4, vco2: 115, hbGL: 120, deadspaceMl: 100 }, vitalsBase: { hr: 98, sys: 104, dia: 62, temp: 38.4 },
@@ -116,7 +120,7 @@ export const CHILD_SITUATIONS = [
   {
     id: 'barn-astma', pediatric: true,
     title: 'Alvorlig astma: dynamisk hyperinflasjon',
-    vignette: 'Jente, 8 år, 128 cm. Alvorlig astmaanfall, intubert i akuttmottaket. Ventileres i (S)CMV+ med Vt 190 ml, frekvens 24, I:E 1:2, PEEP 5, O2 40 %. Sedert og relaksert.',
+    vignette: 'Jente, 8 år, 128 cm. Alvorlig astmaanfall, intubert i akuttmottaket. Ventileres i APVcmv med Vt 190 ml, frekvens 24, I:E 1:2, PEEP 5, O2 40 %. Sedert og relaksert.',
     profileId: 'normal', patient: { height: 128, sex: 'K', compliance: 25, resistance: 30, resistanceExp: 45, effort: { amplitude: 0, rate: 24, duration: 0.8 } },
     settings: { mode: 'APVCMV', vt: 190, rate: 24, peep: 5, fio2: 40, timingMode: 'ie', ie: { i: 1, e: 2 }, pramp: 50, trigger: { type: 'flow', value: 2 }, pmax: 45 },
     gas: { shunt: 0.08, recruitability: 0.1, vco2: 105, hbGL: 125, deadspaceMl: 80 }, vitalsBase: { hr: 112, sys: 108, dia: 62, temp: 37.3 },
@@ -128,7 +132,7 @@ export const CHILD_SITUATIONS = [
       harmful: { rekruttering: 'Skadelig: en rekrutteringsmanøver øker hyperinflasjonen og kan gi pneumothorax og sirkulasjonssvikt.' },
       neutral: { ...NEUTRAL_BASE, bronkodilatator: undefined, lege: 'Legen: «Senk frekvensen og forleng ekspirasjonen. Vi aksepterer høy CO2.»', vaeske: 'Væske kan heve blodtrykket litt, men årsaken er trykket i brystkassen.' },
       ventFix: true,
-      target: 'AutoPEEP under 3 cmH2O med lav frekvens (ca. 10–16) og lang ekspirasjon (I:E 1:3–1:5). Aksepter høy PaCO2.',
+      target: 'AutoPEEP under 3 cmH2O med lav frekvens (ca. 10–16) og lang ekspirasjon (I:E 1:3–1:5). Aksepter høy PaCO2. Vurder (S)CMV med firkantflow og pause for å kunne følge platåtrykket.',
       vitalsFn: ({ m }) => { const x = Math.max(0, (m.autoPeep ?? 0) - 2); return { sys: -4 * x, dia: -2 * x, hr: 3 * x }; },
       resolve: ({ m, settings }) => m.autoPeep < 3 && settings.rate <= 18,
       teach: [
@@ -138,16 +142,20 @@ export const CHILD_SITUATIONS = [
         { after: 'juster', when: ({ m }) => m.autoPeep < 3, text: 'Riktig! AutoPEEP faller. Når trykket i brystkassen synker, øker venøs tilbakestrømning og blodtrykket bedres.' },
         { kind: 'info', after: 'juster', when: ({ gas }) => gas.paco2 > 7, text: 'Høy PaCO2 aksepteres ved astma (permissiv hyperkapni, pH over ca. 7,20). Ikke øk frekvensen for å «jage» CO2: det øker luftfangsten.' },
         { kind: 'obs', when: ({ settings }) => settings.rate > 26, text: 'Obs: Høyere frekvens forkorter ekspirasjonen og øker AutoPEEP.' },
+        { kind: 'info', after: 'juster', when: ({ settings }) => settings.mode !== 'SCMV', text: 'Lokal metodebok (Hamilton C6): ved alvorlig obstruksjon anbefales (S)CMV med firkantflow og inspiratorisk pause, fordi pausen viser platåtrykket. APVcmv har ingen pause. Senk TI eller frekvens slik at ekspirasjonen blir lang nok.' },
+        { when: ({ settings }) => settings.mode === 'SCMV' && settings.tip > 0 && settings.flowPattern === 'square', text: 'Riktig! (S)CMV med firkantflow og pause gir et målbart platåtrykk. Ved astma er Ppeak høy fordi luftveiene er trange; det er Pplateau (helst under 30 cmH2O) og AutoPEEP som sier noe om hyperinflasjonen.' },
+        { kind: 'obs', when: ({ settings, m }) => settings.mode === 'SCMV' && m.pplat > 30, text: 'Obs: Pplateau er over 30 cmH2O. Lungene er overfylte: senk frekvens eller Vt, og forleng ekspirasjonen.' },
+        { kind: 'info', after: 'juster', when: ({ m }) => m.breathType === 'triggered', text: 'Trigget pust forkorter ekspirasjonen. Metodeboka: reduser TI, eller slå av triggeren i kontrollert modus (Kontroller › Trigger «Av») hvis pasienten er dypt sedert.' },
       ],
-      explanation: 'Ved alvorlig astma tar ekspirasjonen lang tid fordi luftveiene er trange. Med frekvens 24 og I:E 1:2 starter neste pust før lungen er tømt, så luft fanges (dynamisk hyperinflasjon). AutoPEEP øker trykket i brystkassen, reduserer venøs tilbakestrømning og kan gi sirkulasjonssvikt og pneumothorax. Strategien er lav frekvens, lang ekspirasjon (I:E 1:3–1:5), lav PEEP og permissiv hyperkapni (pH over ca. 7,20), i tillegg til bronkodilaterende behandling.',
+      explanation: 'Ved alvorlig astma tar ekspirasjonen lang tid fordi luftveiene er trange. Med frekvens 24 og I:E 1:2 starter neste pust før lungen er tømt, så luft fanges (dynamisk hyperinflasjon). AutoPEEP øker trykket i brystkassen, reduserer venøs tilbakestrømning og kan gi sirkulasjonssvikt og pneumothorax. Strategien er lav frekvens, lang ekspirasjon (I:E 1:3–1:5), lav PEEP og permissiv hyperkapni (pH over ca. 7,20), i tillegg til bronkodilaterende behandling. Lokal metodebok for Hamilton C6 anbefaler (S)CMV med firkantflow og inspiratorisk pause ved alvorlig obstruksjon, slik at platåtrykket kan følges.',
     }],
   },
   // ---------------------------------------------------------------- B5
   {
     id: 'barn-bronkiolitt', pediatric: true,
     title: 'Bronkiolitt: luftfangst hos småbarn',
-    vignette: 'Gutt, 14 måneder, 76 cm, 10 kg. RS-virusbronkiolitt, intubert for apné og utmattelse. Ventileres i PCV+: Pcontrol 16 over PEEP 5, frekvens 40, TI 0,6 s, O2 45 %. Sedert.',
-    profileId: 'normal', patient: { height: 76, sex: 'M', compliance: 6, resistance: 45, resistanceExp: 60, effort: { amplitude: 0, rate: 35, duration: 0.5 } },
+    vignette: 'Gutt, 14 måneder, 76 cm, 10 kg (pasientkategori Barn/nyfødt, vekt 10 kg). RS-virusbronkiolitt, intubert for apné og utmattelse. Ventileres i PCV+: Pcontrol 16 over PEEP 5, frekvens 40, TI 0,6 s, O2 45 %. Sedert.',
+    profileId: 'normal', patient: { height: 76, sex: 'M', group: 'neo', weightKg: 10, compliance: 6, resistance: 45, resistanceExp: 60, effort: { amplitude: 0, rate: 35, duration: 0.5 } },
     settings: { mode: 'PCV', pcontrol: 16, rate: 40, peep: 5, fio2: 45, timingMode: 'ti', ti: 0.6, pramp: 50, trigger: { type: 'flow', value: 1 }, pmax: 40 },
     gas: { shunt: 0.1, recruitability: 0.2, vco2: 60, hbGL: 110, deadspaceMl: 35 }, vitalsBase: { hr: 140, sys: 92, dia: 52, temp: 38.0 },
     variants: [{
@@ -158,9 +166,10 @@ export const CHILD_SITUATIONS = [
       harmful: { rekruttering: 'Skadelig: høyt trykk i en obstruktiv lunge øker luftfangsten og risikoen for pneumothorax.' },
       neutral: { ...NEUTRAL_BASE, sug: 'Du suger litt seigt sekret. Det hjelper litt, men luftfangsten skyldes trange småluftveier.', bronkodilatator: 'Bronkodilatator har usikker effekt ved bronkiolitt og løser ikke luftfangsten.', lege: 'Legen: «Senk frekvensen så han får puste ut. Vi aksepterer CO2.»' },
       ventFix: true,
-      target: 'AutoPEEP under 2 cmH2O og Vt minst 5,5 ml/kg IBW, ved lavere frekvens (ca. 20–30) og lengre ekspirasjon.',
+      target: 'AutoPEEP under 2 cmH2O og Vt minst 5,5 ml/kg, ved lavere frekvens (ca. 20–30) og lengre ekspirasjon.',
       resolve: ({ m, settings }) => m.autoPeep < 2 && m.vtPerKg >= 5.5 && settings.rate <= 32,
       teach: [
+        { kind: 'info', when: () => true, text: 'Pasientkategori: barn under 15 kg legges inn som «Barn/nyfødt» med kroppsvekt, ikke høyde og kjønn (lokal metodebok, Hamilton C6). Vt/kg regnes da per kg kroppsvekt. Se Kontroller › Pasient.' },
         { kind: 'obs', when: ({ m }) => m.autoPeep > 3, text: 'Obs: AutoPEEP stiger. I trykkontroll spiser AutoPEEP av drivtrykket, så Vt faller.' },
         { when: ({ settings }) => settings.rate <= 30, text: 'Riktig! Ved obstruktiv bronkiolitt gir lavere frekvens og lengre ekspirasjon mindre luftfangst. Trykkontrollert ventilasjon og permissiv hyperkapni er vanlig strategi.' },
         { after: 'juster', when: ({ m }) => m.autoPeep < 2 && m.vtPerKg >= 5.5, text: 'Riktig! Vt steg da AutoPEEP falt, selv om du ikke økte trykket. Lungen fikk tømme seg.' },
@@ -173,7 +182,7 @@ export const CHILD_SITUATIONS = [
   {
     id: 'barn-dka', pediatric: true,
     title: 'Diabetisk ketoacidose: for lavt minuttvolum etter intubasjon',
-    vignette: 'Jente, 12 år, 150 cm. Alvorlig diabetisk ketoacidose med fallende bevissthet, intubert for 5 minutter siden. Før intubasjon pustet hun dypt og raskt. Respiratoren er satt opp med (S)CMV+, Vt 280 ml, frekvens 16, PEEP 5, O2 35 %.',
+    vignette: 'Jente, 12 år, 150 cm. Alvorlig diabetisk ketoacidose med fallende bevissthet, intubert for 5 minutter siden. Før intubasjon pustet hun dypt og raskt. Respiratoren er satt opp med APVcmv, Vt 280 ml, frekvens 16, PEEP 5, O2 35 %.',
     profileId: 'normal', patient: { height: 150, sex: 'K', compliance: 40, resistance: 12, resistanceExp: 13, effort: { amplitude: 0, rate: 30, duration: 0.8 } },
     settings: { mode: 'APVCMV', vt: 280, rate: 16, peep: 5, fio2: 35, timingMode: 'ie', ie: { i: 1, e: 2 }, pramp: 50, trigger: { type: 'flow', value: 2 }, pmax: 40 },
     gas: { shunt: 0.05, recruitability: 0.2, vco2: 140, hbGL: 135 }, gasStart: { paco2: 2.4 }, vitalsBase: { hr: 135, sys: 98, dia: 54, temp: 36.8 },
@@ -202,7 +211,7 @@ export const CHILD_SITUATIONS = [
   {
     id: 'barn-hodeskade', pediatric: true,
     title: 'Alvorlig hodeskade: hyperventilering',
-    vignette: 'Gutt, 10 år, 140 cm. Påkjørt på sykkel, alvorlig hodeskade, intubert ute. Ventileres i (S)CMV+ med Vt 260 ml, frekvens 26, PEEP 5, O2 40 %. Trykkmåler for intrakranielt trykk er lagt inn. Sedert.',
+    vignette: 'Gutt, 10 år, 140 cm. Påkjørt på sykkel, alvorlig hodeskade, intubert ute. Ventileres i APVcmv med Vt 260 ml, frekvens 26, PEEP 5, O2 40 %. Trykkmåler for intrakranielt trykk er lagt inn. Sedert.',
     profileId: 'normal', patient: { height: 140, sex: 'M', compliance: 32, resistance: 12, resistanceExp: 13, effort: { amplitude: 0, rate: 20, duration: 0.9 } },
     settings: { mode: 'APVCMV', vt: 260, rate: 26, peep: 5, fio2: 40, timingMode: 'ie', ie: { i: 1, e: 2 }, pramp: 50, trigger: { type: 'flow', value: 2 }, pmax: 40 },
     gas: { shunt: 0.05, recruitability: 0.2, vco2: 120, hbGL: 115 }, vitalsBase: { hr: 88, sys: 118, dia: 70, temp: 36.9 },
@@ -229,8 +238,8 @@ export const CHILD_SITUATIONS = [
   {
     id: 'barn-lekkasje-autotrigging', pediatric: true,
     title: 'Ucuffet tube: lekkasje og autotrigging',
-    vignette: 'Jente, 2 år, 86 cm. Pneumoni, intubert med ucuffet tube 4,5. Lett sedert og trigger pustene selv i PCV+: Pcontrol 12 over PEEP 5, frekvens 24, TI 0,7 s, flowtrigger 1 l/min, O2 35 %.',
-    profileId: 'normal', patient: { height: 86, sex: 'K', compliance: 7, resistance: 30, resistanceExp: 32, effort: { amplitude: 3, rate: 26, duration: 0.6 } },
+    vignette: 'Jente, 2 år, 86 cm, 12 kg (Barn/nyfødt). Pneumoni, intubert med ucuffet tube 4,5. Lett sedert og trigger pustene selv i PCV+: Pcontrol 12 over PEEP 5, frekvens 24, TI 0,7 s, flowtrigger 1 l/min, O2 35 %.',
+    profileId: 'normal', patient: { height: 86, sex: 'K', group: 'neo', weightKg: 12, compliance: 7, resistance: 30, resistanceExp: 32, effort: { amplitude: 3, rate: 26, duration: 0.6 } },
     settings: { mode: 'PCV', pcontrol: 12, rate: 24, peep: 5, fio2: 35, timingMode: 'ti', ti: 0.7, pramp: 50, trigger: { type: 'flow', value: 1 }, pmax: 35 },
     gas: { shunt: 0.07, recruitability: 0.2, vco2: 60, hbGL: 112, deadspaceMl: 36 }, vitalsBase: { hr: 120, sys: 95, dia: 55, temp: 37.4 },
     variants: [{
@@ -270,23 +279,26 @@ export const CHILD_SITUATIONS = [
       harmful: { sedasjon: 'Skadelig: sedasjon svekker pustedriven hos et barn som allerede har svake pustemuskler.' },
       neutral: { ...NEUTRAL_BASE, sug: 'Litt sekret; han hoster svakt. Det hjelper lite.', lege: 'Legen: «Gi ham mer støtte: høyere trykkstøtte eller kontrollert modus til han har hvilt.»' },
       ventFix: true,
-      target: 'Vt 6–9 ml/kg og frekvens ≤ 30: høyere trykkstøtte (ca. 12–14) eller kontrollert modus (PCV+ / (S)CMV+).',
+      target: 'Vt 6–9 ml/kg og frekvens ≤ 30: høyere trykkstøtte (ca. 12–14) eller kontrollert modus (PCV+ / APVcmv).',
       resolve: ({ m, settings }) => (settings.mode !== 'SPONT' || settings.psupport >= 12) && m.vtPerKg >= 6 && m.vtPerKg <= 9.5 && m.fTotal <= 30,
       teach: [
         { kind: 'obs', when: ({ m }) => m.fTotal > 32 && m.vtPerKg < 5, text: 'Obs: Rask, overfladisk pust er tegn på utmattelse. Svake pustemuskler klarer ikke å holde Vt med lav trykkstøtte.' },
         { when: ({ settings }) => settings.mode !== 'SPONT' || settings.psupport >= 12, text: 'Riktig! Barn med nevromuskulær sykdom har svake pustemuskler. De trenger ofte mer trykkstøtte, og kontrollert ventilasjon når de er utmattet.' },
         { kind: 'obs', when: ({ m }) => m.vtPerKg > 10, text: 'Obs: Vt over 10 ml/kg er for mye. Nok støtte betyr Vt 6–8 ml/kg og rolig frekvens, ikke maksimal støtte.' },
-        { kind: 'info', after: 'juster', when: () => true, text: 'Ved nevromuskulær sykdom kan lungene være friske mens musklene svikter. Vt, frekvens og PaCO2 sier mer om støtten er nok enn SpO2.' },
+        { kind: 'info', after: 'juster', when: () => true, text: 'Ved nevromuskulær sykdom kan lungene være friske mens musklene svikter. Vt, frekvens og PaCO2 sier mer om støtten er nok enn SpO2. Hypoventilasjon defineres hos barn som TcpCO2/PaCO2 over 6,7 kPa (Metodebok, Barn med behov for LTMV).' },
+        { kind: 'info', after: 'juster', when: ({ settings }) => settings.mode !== 'SPONT' || settings.psupport >= 12, text: 'Ved nevromuskulær sykdom anbefales BiPAP (to trykknivåer med trykkstøtte), ikke CPAP alene, også etter ekstubasjon. Målet er Vt 6–10 ml/kg og normal CO2, og backup-frekvensen settes 2–3 under barnets egen frekvens (Metodebok, Barn med behov for LTMV).' },
+        { kind: 'obs', when: ({ settings }) => settings.pramp > 100, text: 'Obs: Lang P-ramp (stigetid) gir for lite volum når barnet puster raskt. Hos barn, særlig de minste, skal stigetiden være kort nok til at pusten blir synkron og volumet tilstrekkelig.' },
+        { kind: 'obs', when: ({ settings }) => settings.mode === 'SPONT' && settings.psupport <= 2, text: 'Obs: Bare CPAP gir ingen trykkstøtte. Svake pustemuskler trenger støtte i inspirasjonen (BiPAP / trykkstøtte), ikke bare PEEP.' },
       ],
-      explanation: 'Barn med spinal muskelatrofi og andre nevromuskulære sykdommer har svake pustemuskler. Under en pneumoni trettes de raskt: pusten blir rask og overfladisk, og PaCO2 stiger. Trykkstøtte 8 holder ikke. Øk støtten til Vt 6–8 ml/kg og frekvens under 30, eller gå over til kontrollert modus for å hvile musklene. Sedasjon svekker pusten ytterligere.',
+      explanation: 'Barn med spinal muskelatrofi og andre nevromuskulære sykdommer har svake pustemuskler. Under en pneumoni trettes de raskt: pusten blir rask og overfladisk, og PaCO2 stiger. Trykkstøtte 8 holder ikke. Øk støtten til Vt 6–8 ml/kg og frekvens under 30, eller gå over til kontrollert modus for å hvile musklene. Sedasjon svekker pusten ytterligere. Den nasjonale metodeboka for barn med LTMV anbefaler BiPAP framfor CPAP ved nevromuskulær sykdom, Vt 6–10 ml/kg, backup-frekvens 2–3 under egen frekvens og kort stigetid hos små barn. Planlegg NIV med BiPAP etter ekstubasjon.',
     }],
   },
   // ---------------------------------------------------------------- B10
   {
     id: 'barn-ekstubasjonstest', pediatric: true,
     title: 'Ekstubasjonstest hos treåring',
-    vignette: 'Gutt, 3 år, 95 cm. Intubert for bronkopneumoni, dag 4. Våken og rolig, god hoste, lite sekret. Puster selv i SPONT med trykkstøtte 10 over PEEP 6, O2 30 %.',
-    profileId: 'normal', patient: { height: 95, sex: 'M', compliance: 14, resistance: 25, resistanceExp: 25, effort: { amplitude: 3, rate: 24, duration: 0.85 } },
+    vignette: 'Gutt, 3 år, 95 cm, 14 kg (Barn/nyfødt). Intubert for bronkopneumoni, dag 4. Våken og rolig, god hoste, lite sekret. Puster selv i SPONT med trykkstøtte 10 over PEEP 6, O2 30 %.',
+    profileId: 'normal', patient: { height: 95, sex: 'M', group: 'neo', weightKg: 14, compliance: 14, resistance: 25, resistanceExp: 25, effort: { amplitude: 3, rate: 24, duration: 0.85 } },
     settings: { mode: 'SPONT', psupport: 10, peep: 6, fio2: 30, ets: 25, pramp: 50, trigger: { type: 'flow', value: 1 }, apneaTime: 15, backup: { rate: 22, pcontrol: 14 }, pmax: 35 },
     gas: { shunt: 0.05, recruitability: 0.2, vco2: 65, hbGL: 115, deadspaceMl: 40 }, vitalsBase: { hr: 108, sys: 98, dia: 58, temp: 37.0 },
     variants: [{
@@ -339,8 +351,8 @@ export const CHILD_SITUATIONS = [
   {
     id: 'barn-hyperoksi', pediatric: true,
     title: 'Hyperoksi: for mye oksygen',
-    vignette: 'Gutt, 18 måneder, 82 cm. Bronkopneumoni, dag 3, i bedring. Ventileres i (S)CMV+ med Vt 80 ml, frekvens 26, PEEP 6. Oksygen ble skrudt opp til 80 % i natt og står der fortsatt. SpO2 100 %.',
-    profileId: 'normal', patient: { height: 82, sex: 'M', compliance: 10, resistance: 30, resistanceExp: 32, effort: { amplitude: 0, rate: 30, duration: 0.6 } },
+    vignette: 'Gutt, 18 måneder, 82 cm, 11 kg (Barn/nyfødt). Bronkopneumoni, dag 3, i bedring. Ventileres i APVcmv med Vt 80 ml, frekvens 26, PEEP 6. Oksygen ble skrudt opp til 80 % i natt og står der fortsatt. SpO2 100 %.',
+    profileId: 'normal', patient: { height: 82, sex: 'M', group: 'neo', weightKg: 11, compliance: 10, resistance: 30, resistanceExp: 32, effort: { amplitude: 0, rate: 30, duration: 0.6 } },
     settings: { mode: 'APVCMV', vt: 80, rate: 26, peep: 6, fio2: 80, timingMode: 'ie', ie: { i: 1, e: 2 }, pramp: 50, trigger: { type: 'flow', value: 1 }, pmax: 35 },
     gas: { shunt: 0.2, recruitability: 0.2, vco2: 55, hbGL: 110, deadspaceMl: 30 }, vitalsBase: { hr: 118, sys: 94, dia: 54, temp: 37.4 },
     variants: [{

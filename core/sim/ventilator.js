@@ -19,14 +19,15 @@ import { createLung } from './lungModel.js';
 import { pmusAt } from './patientEffort.js';
 import {
   cycleTime, tiFromIE, peakFlowForVolume, flowAtFraction, timeConstant,
-  staticCompliance, inspiratoryResistance, idealBodyWeightHamilton, vtPerKg,
+  staticCompliance, inspiratoryResistance, idealBodyWeightHamilton, patientIbw, vtPerKg,
 } from '../physiology/respiratory.js';
 
 export const MODES = {
-  APVCMV: { id: 'APVCMV', label: '(S)CMV+', description: 'Volummål med adaptiv trykkontroll (APVcmv): trykket justeres pust for pust for å nå innstilt Vt' },
-  PCV: { id: 'PCV', label: 'PCV+', description: 'Trykkontroll: ΔPcontrol over PEEP, volumet følger lungen' },
-  SPONT: { id: 'SPONT', label: 'SPONT', description: 'Spontan pusting med trykkstøtte (ΔPsupport), apné-backup' },
-  SCMV: { id: 'SCMV', label: '(S)CMV', description: 'Flowstyrt volumkontroll (finnes ikke på HAMILTON-C1; beholdt for undervisning)' },
+  APVCMV: { id: 'APVCMV', label: 'APVcmv', description: 'Volummål med adaptiv trykkontroll: trykket justeres pust for pust for å nå innstilt Vt. Flow fordeles over hele inspirasjonen; ingen inspiratorisk pause' },
+  PCV: { id: 'PCV', label: 'PCV+', description: 'Trykkontroll: Pcontrol over PEEP, volumet følger lungen' },
+  SPONT: { id: 'SPONT', label: 'SPONT', description: 'Spontan pusting med trykkstøtte (Psupport) og ETS; apné-backup' },
+  SCMV: { id: 'SCMV', label: '(S)CMV', description: 'Klassisk volumkontroll med konstant flow og valgfri inspiratorisk pause, så platåtrykket kan følges (nyttig ved alvorlig obstruksjon)' },
+  DUOPAP: { id: 'DUOPAP', label: 'DuoPAP', description: 'Bifasisk trykk: veksler mellom P high og PEEP med innstilt frekvens og T high. Pasienten kan puste spontant på begge nivåer, med trykkstøtte på PEEP-nivå' },
 };
 
 export const DEFAULT_SETTINGS = {
@@ -41,10 +42,11 @@ export const DEFAULT_SETTINGS = {
   tip: 0,             // Pause i % av total syklustid (Hamilton-C6 brukerhåndbok, kap. 7.2)
   flowPattern: 'square', // 'square' | 'decel'
   pcontrol: 15,       // cmH2O over PEEP
+  phigh: 20,          // cmH2O absolutt, øvre trykknivå i DuoPAP
   psupport: 10,       // cmH2O over PEEP
   pramp: 50,          // ms
   ets: 25,            // % av toppflow
-  trigger: { type: 'flow', value: 2 }, // L/min (flow) eller cmH2O (pressure)
+  trigger: { type: 'flow', value: 2 }, // L/min (flow), cmH2O (pressure) eller 'off' (bare i kontrollerte modi)
   tiMax: 1.5,         // s, maks inspirasjonstid i SPONT (Hamilton-C6 standard voksen: 1,5 s)
   apneaTime: 20,      // s før backup i SPONT
   backup: { rate: 12, pcontrol: 15 },
@@ -58,6 +60,8 @@ export const DEFAULT_PATIENT = {
   effort: { amplitude: 0, rate: 14, duration: 1.0 }, // Pmus cmH2O, egenfrekvens /min, nevral Ti s
   height: 175,        // cm
   sex: 'M',           // 'M' | 'K'
+  group: 'adult',     // 'adult' = voksen/barn (høyde og kjønn), 'neo' = barn/nyfødt under 15 kg (vekt)
+  weightKg: null,     // kg, brukes i gruppe 'neo'
 };
 
 const MAX_HOLD = 10;       // s, Hamilton avslutter hold automatisk (UVERIFISERT: 10 s)
@@ -159,7 +163,7 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
     breathType: null, cycleReason: null, mode: s.mode, pressureLimited: false, highPressure: false, pinsp: null,
   };
 
-  function ibw() { return idealBodyWeightHamilton(p.height, p.sex); }
+  function ibw() { return patientIbw(p); }
 
   function tiSetting() {
     const tc = cycleTime(s.rate);
@@ -200,6 +204,10 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
     } else if (mode === 'PCV' && type !== 'backup') {
       b.ptarget = s.peep + s.pcontrol;
       b.tiSet = ti;
+    } else if (mode === 'DUOPAP' && type !== 'backup' && type !== 'spont') {
+      // obligatorisk (eller synkronisert) overgang til P high i T high
+      b.ptarget = Math.max(s.peep + 1, s.phigh);
+      b.tiSet = ti;
     } else if (mode === 'APVCMV' && type !== 'backup') {
       // Hamilton APV: ΔPinsp mellom 5 cmH2O og Plimit − PEEP
       apvPinsp = Math.max(5, Math.min(apvPinsp, s.pmax - 10 - s.peep));
@@ -219,10 +227,13 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
     phase = 'insp';
     lastBreathStart = t;
     if (type === 'backup') nextMandatory = t + cycleTime(s.backup.rate);
-    else if (mode !== 'SPONT') nextMandatory = t + tc;
+    else if (mode !== 'SPONT' && type !== 'spont') nextMandatory = t + tc;
     if (type === 'mandatory' || type === 'backup') scheduleEffortAfter(t); // pasienten følger maskinen
     if (type === 'triggered' || type === 'spont') backupActive = false;
   }
+
+  /** DuoPAP: et pusteforsøk i siste del av syklusen gir synkronisert overgang til P high (triggervindu, modellvalg 25 %). */
+  function inDuoTriggerWindow() { return t >= nextMandatory - 0.25 * cycleTime(s.rate); }
 
   function endInspiration() {
     const b = breath;
@@ -320,6 +331,7 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
 
   function triggerCheck(pmus) {
     if (disconnected) return false; // ingen flow/trykk å trigge på i en åpen krets
+    if (s.trigger.type === 'off') return false;
     if (t - expStart < MIN_EXP_BEFORE_TRIGGER) return false;
     const pdrop = Math.max(0, pmus - (lung.elasticPressure - s.peep)); // trykk pasienten trekker under PEEP
     const noise = lastNoise; // L/min, 0 uten kondens/lekkasje
@@ -351,7 +363,7 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
       if (hold.active === 'exp') {
         // holdes nedenfor
       } else if (triggerCheck(pmus)) {
-        startType = s.mode === 'SPONT' ? 'spont' : 'triggered';
+        startType = s.mode === 'SPONT' ? 'spont' : s.mode === 'DUOPAP' ? (inDuoTriggerWindow() ? 'triggered' : 'spont') : 'triggered';
       } else if (s.mode !== 'SPONT' && t >= nextMandatory) {
         startType = 'mandatory';
       } else if (s.mode === 'SPONT') {
@@ -520,6 +532,7 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
       if (partial.rate !== undefined && s.mode !== 'SPONT' && breath) {
         nextMandatory = Math.min(nextMandatory, breath.start + cycleTime(s.rate));
       }
+      if ((s.mode === 'SPONT' || s.mode === 'DUOPAP') && s.trigger.type === 'off') s.trigger = { type: 'flow', value: 2 };
       measurements.peep = s.peep;
       return s;
     },

@@ -118,7 +118,7 @@ Fysikk (enkompartment, bevegelsesligningen):
 - Manøvrer: inspiratorisk hold (gir Pplat) og ekspiratorisk hold (gir total PEEP).
 - Profiler: normal, ARDS, obstruktiv (KOLS/astma), restriktiv. Verdier merkes med
   kilde eller UVERIFISERT i KILDER.md.
-- Modus (S)CMV+ (APVcmv-liknende, trykkregulert mot Vt) er standard; PCV+ og SPONT i tillegg.
+- Modus APVcmv (trykkregulert mot Vt) er standard; PCV+ og SPONT i tillegg.
 - Caser (scenarios.js): 13 nummererte caser med skjult hendelse, meldingsfeed, valg 1 av 5
   (undersøkelser, så tiltak, «Juster respiratoren» uten videre valg) og oppsummering.
 - Oppgaver (tasks.js): 24 oppgaver i seks kategorier, bl.a. «lungebeskyttende på denne pasienten», «finn årsak til høyt

@@ -107,7 +107,7 @@ export const SITUATIONS = [
   {
     id: 'biting',
     title: 'Høytrykksalarm hos pasient som våkner',
-    vignette: 'Mann, 45 år, intubert etter hodeskade, ventileres i (S)CMV+. Sedasjonen er trappet ned siste time. Du er inne på rommet for å sjekke infusjonene.',
+    vignette: 'Mann, 45 år, intubert etter hodeskade, ventileres i APVcmv. Sedasjonen er trappet ned siste time. Du er inne på rommet for å sjekke infusjonene.',
     profileId: 'normal', settings: SETT.normalScmv,
     variants: [{
       id: 'biting', sounds: { cough: true }, vitals: { hr: 35, sys: 25 }, cues: [{ at: 0, who: 'obs', text: 'Pasienten hoster kraftig og vrir på hodet.' }, { at: 20, who: 'obs', text: 'Han har åpnet øynene og ser urolig ut. Kjevene er knepet sammen.' }, { at: 60, who: 'kollega', text: '«Skal jeg hente noe til sedasjon?»' }], delay: [15, 30],
@@ -117,13 +117,13 @@ export const SITUATIONS = [
       harmful: {},
       neutral: { sug: 'Sugekateteret kommer ikke forbi bittet.', koble: 'Kretsen var tilkoblet.', tube: 'Tuben lå riktig.', bronkodilatator: 'Ingen bronkospasme; biting på tuben er en mekanisk obstruksjon.', rekruttering: 'Ikke aktuelt; problemet sitter i tuben.', lege: 'Legen finner ikke pneumothorax.', reposisjon: 'Ingen effekt.' },
       resolve: ({ m, fixed }) => fixed && m.ppeak < 35,
-      explanation: 'Når pasienten biter på tuben, stiger resistance kraftig: Ppeak går i taket mens Pplat (målt ved hold) er normal. I (S)CMV+ øker respiratoren ΔPinsp til Plimit (Pmax − 10) uten å nå Vt, så alarmene «Trykkbegrensning» og «Lavt tidevolum» kommer; i PCV+ faller Vt direkte. Løsning: bittblokk, eventuelt sedasjonsbolus. Å heve Pmax-grensen løser ingenting.',
+      explanation: 'Når pasienten biter på tuben, stiger resistance kraftig: Ppeak går i taket mens Pplat (målt ved hold) er normal. I APVcmv øker respiratoren ΔPinsp til Plimit (Pmax − 10) uten å nå Vt, så alarmene «Trykkbegrensning» og «Lavt tidevolum» kommer; i PCV+ faller Vt direkte. Løsning: bittblokk, eventuelt sedasjonsbolus. Å heve Pmax-grensen løser ingenting.',
     }],
   },
   {
     id: 'sekret',
     title: 'Gradvis stigende topptrykk',
-    vignette: 'Kvinne, 70 år, pneumoni, intubert døgn 2, ventileres i (S)CMV+. Hun har mye sekret og ble sist sugd for fire timer siden.',
+    vignette: 'Kvinne, 70 år, pneumoni, intubert døgn 2, ventileres i APVcmv. Hun har mye sekret og ble sist sugd for fire timer siden.',
     profileId: 'normal', settings: SETT.normalScmv,
     variants: [{
       id: 'sekret', sounds: { secretions: 1, cough: true }, vitals: { hr: 10 }, cues: [{ at: 0, who: 'obs', text: 'Du hører en rasling i tuben når hun puster ut.' }, { at: 45, who: 'obs', text: 'Hun hoster et par ganger uten at det ser ut til å hjelpe.' }, { at: 100, who: 'kollega', text: '«Trykkene har krøpet oppover den siste halvtimen.»' }], delay: [10, 25],
@@ -155,7 +155,7 @@ export const SITUATIONS = [
   {
     id: 'pneumothorax',
     title: 'Plutselig fall i SpO2 hos traumepasient',
-    vignette: 'Mann, 34 år, traume med ribbeinsbrudd høyre side, intubert, ventileres i (S)CMV+. Har vært stabil i to timer.',
+    vignette: 'Mann, 34 år, traume med ribbeinsbrudd høyre side, intubert, ventileres i APVcmv. Har vært stabil i to timer.',
     profileId: 'normal', settings: { ...SETT.normalScmv, vt: 520, peep: 6 },
     variants: [{
       id: 'pneumothorax', sounds: {}, vitals: { hr: 40, sys: -40, dia: -20 }, cues: [{ at: 0, who: 'obs', text: 'Pasienten blir plutselig urolig og tar seg mot høyre side av brystet.' }, { at: 25, who: 'monitor', text: 'Blodtrykket på monitoren faller.' }, { at: 50, who: 'kollega', text: '«Han ser dårlig ut. Halsvenene er stuvet.»' }], delay: [15, 30],
@@ -171,7 +171,7 @@ export const SITUATIONS = [
   {
     id: 'bronkospasme',
     title: 'Pasient med KOLS blir tettere',
-    vignette: 'Mann, 68 år, KOLS-eksaserbasjon, intubert i går, ventileres i (S)CMV+ med I:E 1:3. Auto-PEEP har vært under 2 cmH2O.',
+    vignette: 'Mann, 68 år, KOLS-eksaserbasjon, intubert i går, ventileres i APVcmv med I:E 1:3. Auto-PEEP har vært under 2 cmH2O.',
     profileId: 'obstruktiv', patient: { effort: { amplitude: 0, rate: 14, duration: 1 } }, settings: SETT.kolsScmv,
     variants: [{
       id: 'bronkospasme', sounds: { wheeze: 1 }, vitals: { hr: 20 }, cues: [{ at: 0, who: 'obs', text: 'Du hører pipelyder fra sengen, uten stetoskop.' }, { at: 50, who: 'obs', text: 'Han bruker halsmusklene for å puste, og ekspirasjonen tar lang tid.' }, { at: 100, who: 'kollega', text: '«AutoPEEP-verdien stiger.»' }], delay: [15, 30],
@@ -181,13 +181,16 @@ export const SITUATIONS = [
       harmful: {},
       neutral: { sug: 'Lite sekret. Pipelydene er der fortsatt.', bittblokk: 'Han biter ikke.', sedasjon: 'Han er rolig. Ingen effekt.', koble: 'Kretsen var tilkoblet.', tube: 'Tuben lå riktig.', rekruttering: 'Ikke aktuelt ved obstruksjon; kan forverre hyperinflasjon.', lege: 'Legen finner ikke pneumothorax, men bestiller bronkodilatator.', reposisjon: 'Ingen effekt.' },
       resolve: ({ m, fixed }) => fixed && m.autoPeep < 3 && m.ppeak < 35,
-      explanation: 'Bronkospasme øker særlig den ekspiratoriske resistance. Tidskonstanten blir lang, ekspirasjonsflowen når ikke null, og auto-PEEP bygger seg opp: Ppeak og Pplat stiger, drivtrykket øker. Løsning: bronkodilatator, og gi lungen tid til å tømme seg (lavere frekvens, kortere TI, lengre TE) til effekten kommer.',
+      explanation: 'Bronkospasme øker særlig den ekspiratoriske resistance. Tidskonstanten blir lang, ekspirasjonsflowen når ikke null, og auto-PEEP bygger seg opp: Ppeak og Pplat stiger, drivtrykket øker. Løsning: bronkodilatator, og gi lungen tid til å tømme seg (lavere frekvens, kortere TI, lengre TE) til effekten kommer. Lokal metodebok for Hamilton C6 anbefaler (S)CMV med firkantflow og inspiratorisk pause ved alvorlig obstruksjon, slik at platåtrykket kan følges; trigget pust forkorter ekspirasjonen, så reduser TI eller slå av triggeren hos dypt sederte.',
+      teach: [
+        { kind: 'info', when: ({ m }) => m.autoPeep > 4, text: 'AutoPEEP stiger. Ved alvorlig obstruksjon anbefaler den lokale metodeboka (S)CMV med firkantflow og inspiratorisk pause, så platåtrykket kan følges. Høy Ppeak er da ventet; Pplateau og AutoPEEP viser hyperinflasjonen.' },
+      ],
     }],
   },
   {
     id: 'asynkroni',
     title: 'Pasienten puster mot respiratoren',
-    vignette: 'Kvinne, 52 år, ARDS i bedringsfase, ventileres i (S)CMV+ med rate 14. Sedasjonen er trappet ned i natt.',
+    vignette: 'Kvinne, 52 år, ARDS i bedringsfase, ventileres i APVcmv med rate 14. Sedasjonen er trappet ned i natt.',
     profileId: 'ards', patient: { compliance: 35, resistance: 10, resistanceExp: 10 }, settings: { ...SETT.normalScmv, vt: 380, rate: 14, peep: 8, fio2: 40 },
     gas: { shunt: 0.15, recruitability: 0.4 },
     variants: [{
@@ -199,13 +202,13 @@ export const SITUATIONS = [
       neutral: { sug: 'Lite sekret.', bittblokk: 'Hun biter ikke.', koble: 'Kretsen var tilkoblet.', tube: 'Tuben lå riktig.', bronkodilatator: 'Ingen pipelyder.', rekruttering: 'Ikke aktuelt.', lege: 'Legen foreslår å la henne puste mer selv.', reposisjon: 'Ingen effekt.' },
       ventFix: true,
       resolve: ({ m, settings, fixed }) => (settings.mode === 'SPONT' && m.breathType === 'spont' && m.ppeak < 30) || fixed,
-      explanation: 'En våken pasient med høy egen respirasjonsdrive i (S)CMV+ får asynkroni: pasienten trigger flere pust enn innstilt, trekker mer enn respiratoren gir, og egenpusten kan gi dobbelttrigging. Beste løsning er ofte å møte pasienten: bytt til trykkstøtte (SPONT) med passende ΔPsupport og følsom trigger. Sedasjon er en nødløsning som tar bort fremgangen.',
+      explanation: 'En våken pasient med høy egen respirasjonsdrive i APVcmv får asynkroni: pasienten trigger flere pust enn innstilt, trekker mer enn respiratoren gir, og egenpusten kan gi dobbelttrigging. Beste løsning er ofte å møte pasienten: bytt til trykkstøtte (SPONT) med passende ΔPsupport og følsom trigger. Sedasjon er en nødløsning som tar bort fremgangen.',
     }],
   },
   {
     id: 'cuff-lekkasje',
     title: 'Cuff-lekkasje',
-    vignette: 'Kvinne, 66 år, intubert for pneumoni, ventileres i (S)CMV+ med Vt 420. Har vært stabil hele vakten. Du er inne for å gi medisiner.',
+    vignette: 'Kvinne, 66 år, intubert for pneumoni, ventileres i APVcmv med Vt 420. Har vært stabil hele vakten. Du er inne for å gi medisiner.',
     profileId: 'normal', settings: { mode: 'APVCMV', vt: 420, rate: 16, peep: 6, fio2: 35, timingMode: 'ie', ie: { i: 1, e: 2 } },
     variants: [{
       id: 'cuff', sounds: { leak: 1 }, vitals: { hr: 10 }, delay: [15, 30],
@@ -222,7 +225,7 @@ export const SITUATIONS = [
   {
     id: 'tubeplugg',
     title: 'Tett tube',
-    vignette: 'Mann, 71 år, KOLS, intubert døgn 3, seigt sekret. Ventileres i (S)CMV+. Han ble sugd for en time siden.',
+    vignette: 'Mann, 71 år, KOLS, intubert døgn 3, seigt sekret. Ventileres i APVcmv. Han ble sugd for en time siden.',
     profileId: 'normal', settings: { mode: 'APVCMV', vt: 450, rate: 14, peep: 5, fio2: 40, timingMode: 'ie', ie: { i: 1, e: 2.5 } },
     variants: [{
       id: 'plugg', sounds: { secretions: 0.6 }, vitals: { hr: 35, sys: 15 }, delay: [15, 30],
@@ -239,7 +242,7 @@ export const SITUATIONS = [
   {
     id: 'lungeemboli',
     title: 'Lungeemboli',
-    vignette: 'Kvinne, 59 år, intubert etter stor bukkirurgi, dag 4, lett sedert i (S)CMV+. Har ligget lenge i ro.',
+    vignette: 'Kvinne, 59 år, intubert etter stor bukkirurgi, dag 4, lett sedert i APVcmv. Har ligget lenge i ro.',
     profileId: 'normal', settings: { mode: 'APVCMV', vt: 450, rate: 14, peep: 5, fio2: 35, timingMode: 'ie', ie: { i: 1, e: 2 } },
     gas: { shunt: 0.06, recruitability: 0.2 },
     variants: [{
@@ -283,7 +286,7 @@ export const SITUATIONS = [
       effect: { effort: { amplitude: 0, rate: 16, duration: 1 } },
       cues: [{ at: 0, who: 'obs', text: 'Hun blir stille og slutter å svare på tiltale.' }, { at: 25, who: 'respirator', text: 'Apné-alarm: backup-ventilasjon er startet.' }, { at: 60, who: 'kollega', text: '«Hun puster ikke selv lenger.»' }],
       clues: { lytt: 'Normale respirasjonslyder ved backup-pustene.', se: 'Små pupiller, respirasjonsfrekvens kun det respiratoren gir. Ingen egne pusteforsøk.', krets: 'Kretsen er tett.', hold: 'Pplateau normalt.', blodgass: 'Blodgass: PaCO2 7,4 kPa og stigende.' },
-      fixes: { juster: { text: 'Du bytter til en kontrollert modus (PCV+ eller (S)CMV+) med passende innstillinger til effekten av opioidet avtar.', recover: 0 }, sedasjonNed: { text: 'Du stopper videre opioid og følger henne tett. Egenpusten kommer gradvis tilbake.', recover: 150 } },
+      fixes: { juster: { text: 'Du bytter til en kontrollert modus (PCV+ eller APVcmv) med passende innstillinger til effekten av opioidet avtar.', recover: 0 }, sedasjonNed: { text: 'Du stopper videre opioid og følger henne tett. Egenpusten kommer gradvis tilbake.', recover: 150 } },
       harmful: { sedasjon: 'Mer sedasjon forlenger apnéen.' },
       neutral: { sug: 'Lite sekret.', bittblokk: 'Hun biter ikke.', koble: 'Kretsen var tilkoblet.', tube: 'Tuben lå riktig.', bronkodilatator: 'Ingen effekt.', rekruttering: 'Ikke aktuelt.', lege: 'Legen ber deg sikre ventilasjonen og vurdere nalokson.', reposisjon: 'Ingen effekt.', cuff: 'Cuffen er fin.', vaeske: 'Ikke aktuelt.', smertelindring: 'Ikke aktuelt.' },
       ventFix: true,
@@ -294,7 +297,7 @@ export const SITUATIONS = [
   {
     id: 'smerte',
     title: 'Smerte og agitasjon',
-    vignette: 'Mann, 55 år, intubert etter thoraxkirurgi, i (S)CMV+. Smertepumpen er avsluttet i morges. Dere skal mobilisere ham til sengekanten.',
+    vignette: 'Mann, 55 år, intubert etter thoraxkirurgi, i APVcmv. Smertepumpen er avsluttet i morges. Dere skal mobilisere ham til sengekanten.',
     profileId: 'normal', settings: { mode: 'APVCMV', vt: 480, rate: 14, peep: 5, fio2: 35, timingMode: 'ie', ie: { i: 1, e: 2 } },
     variants: [{
       id: 'smerte', sounds: { cough: true }, vitals: { hr: 35, sys: 35, dia: 15 }, delay: [15, 30],
@@ -364,8 +367,8 @@ export const SITUATIONS = [
   },
   {
     id: 'scmv-slutter-trigge',
-    title: '(S)CMV+: pasienten slutter å trigge etter mer sedasjon',
-    vignette: 'Mann, 70 år, 176 cm, urosepsis, dag 3. Lett sedert med propofol og puster i (S)CMV+ der han trigger alle pustene: innstilt rate 12, Vt 480 ml (6,5 ml/kg), PEEP 5, O2 35 %. I kveld har han selv ligget på 18 pust i minuttet.',
+    title: 'APVcmv: pasienten slutter å trigge etter mer sedasjon',
+    vignette: 'Mann, 70 år, 176 cm, urosepsis, dag 3. Lett sedert med propofol og puster i APVcmv der han trigger alle pustene: innstilt rate 12, Vt 480 ml (6,5 ml/kg), PEEP 5, O2 35 %. I kveld har han selv ligget på 18 pust i minuttet.',
     profileId: 'normal', patient: { height: 176, sex: 'M', effort: { amplitude: 6, rate: 18, duration: 1.0 } }, settings: { mode: 'APVCMV', vt: 480, rate: 12, peep: 5, fio2: 35, timingMode: 'ie', ie: { i: 1, e: 2 }, trigger: { type: 'flow', value: 2 } },
     gas: { shunt: 0.07, recruitability: 0.2 },
     variants: [{
@@ -377,7 +380,7 @@ export const SITUATIONS = [
       neutral: { sug: 'Lite sekret.', bittblokk: 'Han biter ikke.', koble: 'Kretsen var tilkoblet.', tube: 'Tuben lå riktig.', bronkodilatator: 'Ingen pipelyder.', rekruttering: 'Ikke indisert.', lege: 'Legen: «Enten mindre sedasjon eller høyere backup-rate. Innstilt rate skal gi nok minuttvolum alene.»', reposisjon: 'Ingen effekt.', smertelindring: 'Han er dypt sedert.', vaeske: 'Blodtrykket er akseptabelt.' },
       ventFix: true,
       resolve: ({ m }) => m.expMinVol >= 6.5,
-      explanation: 'I (S)CMV+ bestemmer pasienten frekvensen så lenge han trigger; innstilt rate er bare et gulv. Når sedasjonen økes og egenpusten forsvinner, faller frekvensen til gulvet, og minuttvolumet blir for lavt. Sett alltid innstilt rate slik at den gir et akseptabelt minuttvolum alene, og vurder sedasjonsnivået (RASS-mål) før du øker.',
+      explanation: 'I APVcmv bestemmer pasienten frekvensen så lenge han trigger; innstilt rate er bare et gulv. Når sedasjonen økes og egenpusten forsvinner, faller frekvensen til gulvet, og minuttvolumet blir for lavt. Sett alltid innstilt rate slik at den gir et akseptabelt minuttvolum alene, og vurder sedasjonsnivået (RASS-mål) før du øker.',
     }],
   },
   {
