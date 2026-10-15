@@ -68,7 +68,7 @@ const PLANS = {
     wrong: [{ rate: 32 }],
     right: [{ rate: 14 }],
     // paradokset: lavere frekvens gir ikke høyere PaCO2 enn frekvens 26
-    after: (R) => assert.ok(R.gas.state.target.paco2 < 8.2, `PaCO2 ${R.gas.state.target.paco2}`),
+    after: (R) => { R.run(60); assert.ok(R.gas.state.target.paco2 < 8.2, `PaCO2 ${R.gas.state.target.paco2}`); },
   },
 };
 

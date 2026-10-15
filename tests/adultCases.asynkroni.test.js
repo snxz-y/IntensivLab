@@ -57,7 +57,7 @@ const PLANS = {
   },
   // DuoPAP: mer trykkstøtte alene løser ikke; lavere frekvens og P high med trykkstøtte 10 gjør det
   'v-asynkroni-duopap-oppstart': {
-    wait: 60, check: (R) => assert.ok(m(R).fTotal > 28),
+    wait: 80, check: (R) => assert.ok(m(R).fTotal > 28),
     wrong: [{ psupport: 12 }],
     right: [{ phigh: 21, rate: 12, psupport: 10 }],
   },

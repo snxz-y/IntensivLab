@@ -19,8 +19,8 @@ export function rig(id) {
     setDisconnected: (v) => vent.setDisconnected(v), setLeak: (f) => vent.setLeak(f), setTriggerNoise: (n, md) => vent.setTriggerNoise(n, md),
     setArtifacts: (a) => vent.setArtifacts(a), cough: () => vent.cough(),
   };
-  const upd = () => { const m = vent.measurements; gas.setVentilation({ vtMl: vent.disconnected ? 0 : (m.vti ?? m.vte ?? 0), rate: m.fTotal ?? 0, fio2: vent.settings.fio2 / 100, peep: m.peepTotal ?? vent.settings.peep, ibwKg: m.ibw }); };
-  vent.run(20); upd(); gas.settle();
+  const upd = () => { const m = vent.measurements; gas.setVentilation({ vtMl: vent.disconnected ? 0 : (m.vti ?? m.vte ?? 0), rate: m.fTotal ?? 0, breaths: vent.disconnected ? null : m.recentBreaths, fio2: vent.settings.fio2 / 100, peep: m.peepTotal ?? vent.settings.peep, ibwKg: m.ibw }); };
+  vent.run(60); upd(); gas.settle();
   if (def.gasStart) Object.assign(gas.state, def.gasStart);
   const sit = createSituation(def, { rng: () => 0.5, hooks });
   const msgs = [];

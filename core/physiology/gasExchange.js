@@ -88,9 +88,13 @@ export function effectiveShunt(baseShunt, peep, recruitability = 0) {
  * Steady-state gassutveksling for gitt ventilasjon.
  * @returns {{paco2, pao2Alv, pao2, sao2, va}}
  */
-export function steadyStateGas({ vtMl, rate, fio2, peep, ibwKg, shunt, recruitability = 0, vco2 = 200, hbGL = 120, deadspaceMl = null }) {
+export function steadyStateGas({ vtMl, rate, fio2, peep, ibwKg, shunt, recruitability = 0, vco2 = 200, hbGL = 120, deadspaceMl = null, breaths = null }) {
   const vd = deadspaceMl ?? anatomicDeadspace(ibwKg);
-  const va = alveolarVentilation(vtMl, rate, vd);
+  // med pustehistorikk: dødrommet trekkes fra hvert pust (små pust gir nesten bare dødromsventilasjon)
+  const tSum = breaths?.reduce((a, x) => a + x.t, 0) ?? 0;
+  const va = breaths?.length && tSum > 0
+    ? (breaths.reduce((a, x) => a + Math.max(0, x.vti - vd), 0) / tSum) * 60 / 1000
+    : alveolarVentilation(vtMl, rate, vd);
   const paco2 = Math.min(30, paco2FromVentilation(va, vco2));
   const pao2Alv = Math.max(0.5, alveolarPo2(fio2, paco2));
   const sh = effectiveShunt(shunt, peep, recruitability);

@@ -124,6 +124,82 @@ Casene 32–81 er bygget på disse kildene. Detaljer per case står i kommentare
 | Mageleie: kontraindikasjoner | ICP > 30 mmHg eller CPP < 60 mmHg; massiv hemoptyse; trakeal- eller thoraxkirurgi og ansiktstraume/-kirurgi siste 15 dager; DVT/LE behandlet siste 2 døgn; pacemaker siste 2 døgn; ustabile frakturer i columna, femur, brystkasse eller bekken; arterietrykk < 70 mmHg trass vasopressor; graviditet; bronkopleural fistel med ett fremre dren | PROSEVA-protokollen, [ClinicalTrials.gov NCT00527813](https://clinicaltrials.gov/study/NCT00527813) (eksklusjonskriterier i studien, ikke en egen retningslinje) |
 | Mageleie: sykepleie | Trykkskader (panne, hake, bryst, skuldre, bekken, knær), øyne, tubesikring og utilsiktet ekstubasjon, nerveskader, ernæring; armstilling skiftes jevnlig | AACN-praksisvarsel om mageleie, omtalt i [Relias Media](https://www.reliasmedia.com/articles/practice-alert-provides-critical-care-nurses-safety-tips-for-prone-positioning); oversikt i [Nursing 2024](https://www.qgdigitalpublishing.com/article/Prone+positioning+for+patients+with+ARDS/4725855/815480/article.html) |
 | Mageleie i simulatoren | Tiden komprimeres: effekten (mindre shunt, litt høyere compliance) kommer gradvis over ca. 60 s, som står for omtrent én time | Modellvalg, UVERIFISERT størrelse |
+| Alveolær ventilasjon i gassmodellen | Regnes per pust over de siste 8 pustene: Σ(VTI − dødrom) / tid, så små pust gir nesten bare dødromsventilasjon | Modellvalg |
+
+#### Oksygenering, ARDS og mageleie (Case 32–41)
+
+| Hva | Verdi brukt | Kilde |
+|---|---|---|
+| PEEP-titrering | Ingen anbefaling for høy/lav PEEP-tabell eller mekanikkstyrt PEEP (anbefaling 6.1–6.2); rekrutteringsmanøvre med ≥ 35 cmH2O i ≥ 1 min frarådes | ESICM 2023 (over) |
+| Høyere PEEP | Høyere PEEP uten rekrutteringsmanøver ved moderat–alvorlig ARDS (betinget) | Qadir et al., ATS 2024, *Am J Respir Crit Care Med* 2024;209:24–36 ([lenke](https://academic.oup.com/ajrccm/article/209/1/24/8427573)) |
+| Rekruttering og compliance-titrert PEEP | Økte dødeligheten | ART, Cavalcanti et al., *JAMA* 2017;318:1335–45 ([lenke](https://jamanetwork.com/journals/jama/fullarticle/2654894)) |
+| VV-ECMO | Vurderes ved alvorlig ARDS etter EOLIA-kriteriene, i ECMO-senter | ESICM 2023, anbefaling 9.1 |
+| ARDS og hodeskade | PaO2 80–120 mmHg; PaCO2 35–45 mmHg uten forhøyet ICP; ingen anbefaling om mageleie eller lungebeskyttende ventilasjon ved betydelig forhøyet ICP | Robba et al., *Intensive Care Med* 2020;46:2397–410 ([PMC7655906](https://pmc.ncbi.nlm.nih.gov/articles/PMC7655906/)). PaCO2-målet 4,7–5,3 kPa ved ICP over 30 er et pedagogisk valg (ingen konsensus) |
+| Oksygenmål | PaO2 8 mot 12 kPa ga lik 90-dagers dødelighet | HOT-ICU, Schjørring et al., *N Engl J Med* 2021;384:1301–11 ([lenke](https://www.nejm.org/doi/full/10.1056/NEJMoa2032510)) |
+| Lengre inspirasjonstid | Ingen utfallsstudier for invers ratio; fare for luftfangst og blodtrykksfall | Marcy og Marini, *Chest* 1991;100:494–504 ([PubMed](https://pubmed.ncbi.nlm.nih.gov/1864125)); Metodebok HUS (I:E 1:1 som tiltak) |
+| Sykepleie i mageleie | Hode og armer («svømmerstilling») skiftes hver 2.–4. time; ikke trykk mot øynene; tuben ikke mot munnvik/lepper | ICS/FICM, *Guidance for prone positioning in adult critical care* 2019 ([lenke](https://ics.ac.uk/resource/prone-position-in-adult-critical-care.html)) |
+| Frekvens og SpO2-mål ved ARDS | Frekvens opp til 35; SpO2 88–95 % | ARDSNet 2000 og [ARDSNet-protokollen 2008](https://www.ardsnet.org/files/ventilator_protocol_2008-07.pdf) |
+
+#### Obstruktiv lungesykdom (Case 42–51)
+
+| Hva | Verdi brukt | Kilde |
+|---|---|---|
+| PEEP ved PEEPi | Ca. 50–80 % av PEEPi; PEEP over PEEPi kan være skadelig | Metodebok HUS; Davidson et al., BTS/ICS, *Thorax* 2016;71 Suppl 2:ii1–35 ([DOI](https://doi.org/10.1136/thoraxjnl-2015-208209)) |
+| Ekstern PEEP og trigging | PEEP bedret triggerfølsomhet og reduserte pustearbeid | Smith og Marini, *J Appl Physiol* 1988;65:1488–99 ([DOI](https://doi.org/10.1152/jappl.1988.65.4.1488)) |
+| Ineffektiv trigging | Henger sammen med høy trykkstøtte, stort Vt og ufølsom trigger | Thille et al., *Intensive Care Med* 2006;32:1515–22 ([DOI](https://doi.org/10.1007/s00134-006-0301-8)) |
+| ETS ved obstruksjon | ETS 70 % mot 10 %: mindre forsinket syklus, lavere PEEPi, færre ineffektive forsøk | Tassaux et al., *Am J Respir Crit Care Med* 2005;172:1283–9 ([DOI](https://doi.org/10.1164/rccm.200407-880OC)) |
+| AutoPEEP og sirkulasjon | Kan gi alvorlig fall i minuttvolum | Pepe og Marini, *Am Rev Respir Dis* 1982;126:166–70 ([DOI](https://doi.org/10.1164/arrd.1982.126.1.166)) |
+| Hyperinflasjon | Øker med Vt, minuttvolum og kortere TE; Ppeak følger inspiratorisk flow | Tuxen og Lane, *Am Rev Respir Dis* 1987;136:872–9 ([DOI](https://doi.org/10.1164/ajrccm/136.4.872)) |
+| Kontrollert hypoventilering ved astma | Høye trykk er farligere enn hyperkapni; Pplateau < 30 (helst ≤ 25), pH ≥ 7,2 | Darioli og Perret, *Am Rev Respir Dis* 1984;129:385–7 ([DOI](https://doi.org/10.1164/arrd.1984.129.3.385)); Leatherman, *Chest* 2015;147:1671–80 ([DOI](https://doi.org/10.1378/chest.14-1733)) |
+| pH-mål ved kronisk hyperkapni | pH 7,35–7,45, høyere PaCO2 ved KOLS; posthyperkapnisk alkalose gir mer respiratoravhengighet | Metodebok HUS; Banga og Khilnani, *COPD* 2009;6:437–40 ([DOI](https://doi.org/10.3109/15412550903341448)) |
+| SpO2-mål ved KOLS | 88–92 % ved risiko for hyperkapnisk svikt | BTS-retningslinje for oksygen 2017, *Thorax* 2017;72 Suppl 1 |
+| Modus ved obstruksjon | (S)CMV med firkantflow og pause; trigger av / kortere TI; APVcmv har ingen pause; APRV kontraindisert ved astma og alvorlig KOLS | Lokal Metodebok «Hamilton C6 – oversikt»; Metodebok HUS |
+
+#### Ventilasjon, CO2 og syre–base (Case 52–61)
+
+| Hva | Verdi brukt | Kilde |
+|---|---|---|
+| Forventet kompensasjon ved metabolsk acidose | PaCO2 = 1,5 · HCO3 + 8 ± 2 mmHg; minuttvolumet etter intubasjon må matche kompensasjonen | Winters (Albert et al., *Ann Intern Med* 1967;66:312–22); Mosier et al., *West J Emerg Med* 2015;16:1109–17 ([DOI](https://doi.org/10.5811/westjem.2015.8.27467)). Frekvens 26–30 som konkret start er sekundært (REBEL EM) |
+| Hodeskade | Ikke profylaktisk hyperventilering til PaCO2 ≤ 25 mmHg; hyperventilering bare som midlertidig tiltak | Brain Trauma Foundation 4. utg., Carney et al., *Neurosurgery* 2017;80:6–15 |
+| Hodeskade, nedre grense | Ikke rutinemessig PaCO2 < 4,0 kPa; mild hypokapni 4,3–4,7 kPa på trinn 2 | SIBICC, Hawryluk et al., *Intensive Care Med* 2019;45:1783–94. Normokapnimålet 4,5–5,3 kPa er delvis eget valg |
+| Truende innklemming | Kortvarig (< 2 t) hyperventilering til PaCO2 30–35 mmHg som bro | ENLS «Intracranial Hypertension and Herniation» ([PMC4791176](https://pmc.ncbi.nlm.nih.gov/articles/PMC4791176/)) |
+| Etter hjertestans | SpO2 94–98 %, normokapni 4,7–6,0 kPa, Vt 6–8 ml/kg IBW | ERC/ESICM 2025, Nolan et al. (*Resuscitation* 2025 / *Intensive Care Med* 2025); ERC/ESICM 2021 hadde 4,5–6,0 kPa |
+| Lungeemboli | PEEP med forsiktighet, Vt ca. 6 ml/kg, Pplat < 30; stor PaCO2–PetCO2-forskjell ved dødrom | ESC 2019, Konstantinides et al., *Eur Heart J* 2020;41:543–603 |
+| Feber, frysninger | VCO2 304 → 244 ml/min ved nedkjøling fra 39,4 til 37,0 °C; skjelving øker VO2 og VCO2 | Manthous et al., *Am J Respir Crit Care Med* 1995;151:10–4 ([DOI](https://doi.org/10.1164/ajrccm.151.1.7812538)); Ralley et al., *Can J Anaesth* 1988;35:332–7 |
+| Hypotermi | Stoffskiftet faller ca. 7 % per °C; ukorrigerte (alfa-stat) verdier | [PMC8904885](https://pmc.ncbi.nlm.nih.gov/articles/PMC8904885); Paal et al., *Scand J Trauma Resusc Emerg Med* 2016 ([PMC5025630](https://pmc.ncbi.nlm.nih.gov/articles/PMC5025630)) |
+| pH-mål ved ARDS | pH 7,30–7,45; ved 7,15–7,30 økes frekvensen (maks 35) | [ARDSNet-protokollen 2008](https://www.ardsnet.org/files/ventilator_protocol_2008-07.pdf) |
+| Dødrom ved ARDS | Gjennomsnittlig Vd/Vt 0,58 | Nuckton et al., *N Engl J Med* 2002;346:1281–6 ([DOI](https://doi.org/10.1056/NEJMoa012835)) |
+| Utstyrsdødrom | HME under trykkstøtte øker pustearbeidet; 5–10 cmH2O mer støtte kan kompensere; fjerning av HME og slangestykke senket PaCO2 ca. 11 mmHg | Pelosi et al., *Crit Care Med* 1996;24:1184–8; Hinkson et al., *Respir Care* 2006;51:1140–4 |
+
+#### Asynkroni, spontan pust og avvenning (Case 62–71)
+
+| Hva | Verdi brukt | Kilde |
+|---|---|---|
+| Asynkroni | Ineffektiv trigging og dobbelttrigging er vanligst; asynkroniindeks > 10 % henger sammen med lengre respiratortid og høyere dødelighet | Thille et al. 2006 (over); Blanch et al., *Intensive Care Med* 2015;41:633–41 ([DOI](https://doi.org/10.1007/s00134-015-3692-6)) |
+| Stigetid og syklus | Kortest stigetid gir lavest pustearbeid; lav syklusterskel gir lengre pust | Chiumello et al., *Crit Care Med* 2003;31:2604–10 |
+| Flowsult | Pasientens innsats fortsetter etter trigging; trykkregulerte pust lar flowen følge behovet | Marini et al., *Am Rev Respir Dis* 1986;134:902–9; Gilstrap og MacIntyre, *Am J Respir Crit Care Med* 2013;188:1058–68 |
+| Stablede pust | Median 10,1 ml/kg PBW | Pohlman et al., *Crit Care Med* 2008;36:3019–23 |
+| Sentrale apnéer på trykkstøtte | Trykkstøtte gir hypokapni og sentrale apnéer under søvn, særlig ved hjertesvikt | Parthasarathy og Tobin, *Am J Respir Crit Care Med* 2002;166:1423–9 |
+| Nedtrapping og ekstubasjon | Trykkstøtte ned ca. 2 av gangen; FiO2 < 0,35, PEEP ≤ 5, trykkstøtte < 8 | Metodebok HUS «Respiratorbehandling» |
+| Spontanpustetest | Første test med trykkstøtte (5–8 cmH2O) framfor uten (svak anbefaling) | Schmidt et al., ACCP/ATS, *Am J Respir Crit Care Med* 2017;195:115–9 |
+| DuoPAP ved oppstart | DuoPAP med trykkstøtte; SPONT når pasienten puster selv | Metodebok HUS |
+
+#### Spesielle pasientgrupper (Case 72–81)
+
+| Hva | Verdi brukt | Kilde |
+|---|---|---|
+| Overvekt | Vt 6–8 ml/kg PBW, moderat til høy PEEP, anti-Trendelenburg | De Jong et al., *Intensive Care Med* 2020;46:2423–35 ([DOI](https://doi.org/10.1007/s00134-020-06286-x)) |
+| Høyt buktrykk | Ca. 50 % overføres til thorax; høyere PEEP; høyere Pplat kan aksepteres med trygt drivtrykk; ACS = IAP > 20 mmHg med ny organsvikt | Regli, Pelosi og Malbrain, *Ann Intensive Care* 2019;9:52 ([DOI](https://doi.org/10.1186/s13613-019-0522-y)); WSACS 2013 |
+| Bronkopleural fistel | Lavere topptrykk, Vt, PEEP, TI og frekvens | Grotberg et al., *Crit Care Med* 2021;49:292–301 ([DOI](https://doi.org/10.1097/CCM.0000000000004771)) |
+| Kardiogent lungeødem | Positivt trykk senker venøs tilbakestrøm og etterbelastning for venstre ventrikkel | Mahmood og Pinsky, *Ann Transl Med* 2018;6:349 |
+| Høyre ventrikkel | Pplat < 27; risiko for akutt cor pulmonale ved drivtrykk ≥ 18, PaCO2 ≥ 48 mmHg | Jardin og Vieillard-Baron, *Intensive Care Med* 2007;33:444–7; Mekontso Dessap et al., *Intensive Care Med* 2016;42:862–70 |
+| Organdonor | Vt 6–8, PEEP 8–10, apnétest på CPAP, normokapni | Mascia et al., *JAMA* 2010;304:2620–7; Kotloff et al., *Crit Care Med* 2015;43:1291–325 |
+| Graviditet | Normal PaCO2 i tredje trimester ca. 3,7–4,3 kPa; SpO2 ≥ 95 %, PaO2 ≥ 70 mmHg | ELSO 2025, O'Neil et al., *ASAIO J* 2025;71:875–87 ([DOI](https://doi.org/10.1097/MAT.0000000000002556)) |
+| Guillain–Barré | Spontanpustetest vurderes ved FVC > 15 ml/kg | Weiss et al., *Ann Intensive Care* 2025;15:67 |
+| Hjertekirurgi | Ekstubasjon innen 6 timer | ERAS Cardiac, Engelman et al., *JAMA Surg* 2019;154:755–66 |
+| Transport | Samme PEEP ved transport; PEEP > 6 er risikofaktor for hendelser | Metodebok HUS; Parmentier-Decrucq et al., *Ann Intensive Care* 2013;3:10 |
+
+**UVERIFISERT i voksencasene:** alle effektstørrelser i modellen (compliance, resistance, shunt, dødrom, VCO2, PEEP- og mageleieeffekter, blodtrykksfall med PEEP og AutoPEEP, lekkasje ved fistel), pustemønstre (Pmus, nevral Ti, apnéterskel), og enkelte konkrete mål som er egne valg innenfor kildene: PaCO2 4,7–5,3 kPa ved ARDS med ICP over 30, normokapni 4,5–5,3 kPa ved hodeskade, frekvens 26–30 ved metabolsk acidose, drivtrykk ≤ 16 ved høyt buktrykk, flow ≥ 50 l/min mot flowsult, ETS 30–50 % ved KOLS, Pmax ca. 50 ved astma og «fem personer» ved snuing til mageleie.
 
 ## Lyd (core/audio/ventSounds.js)
 

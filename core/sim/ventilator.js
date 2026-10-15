@@ -316,6 +316,8 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
     const totalTime = history.reduce((a, x) => a + x.tcycle, 0) + b.tcycle;
     const n = history.length + 1;
     m.fTotal = (60 * n) / totalTime;
+    // de siste pustene (inspirert volum og syklustid) til gassmodellen, så alveolær ventilasjon regnes per pust
+    m.recentBreaths = [...history, b].map((x) => ({ vti: x.vti, t: x.tcycle }));
     m.expMinVol = ((history.reduce((a, x) => a + x.vte, 0) + b.vte) * (1 - leak) / totalTime) * 60 / 1000;
     const spontN = history.filter((x) => x.type === 'spont').length + (b.type === 'spont' ? 1 : 0);
     m.fSpont = (60 * spontN) / totalTime;

@@ -958,7 +958,8 @@ export function mountRespirator(container, ctx) {
     vent.setPatient({ group: 'adult', weightKg: null, ...patient });
     vent.setDisconnected(false); vent.setLeak(0); vent.setTriggerNoise(0); vent.setArtifacts({ secretions: 0 });
     gas.setParams({ ...GAS_RESET, ...(def.gas ?? gasForProfile(def.profileId)) });
-    vent.reset(); vent.run(20);
+    // innsving før casen starter: gassmodellen bruker de siste pustene, så de første tilpasningspustene må være ute av vinduet
+    vent.reset(); vent.run(60);
     ui.lastBreathTime = vent.time;
     updateGasFromVent(); gas.settle();
     if (def.gasStart) Object.assign(gas.state, def.gasStart); // f.eks. lav PaCO2 fra før intubasjon
@@ -1081,7 +1082,7 @@ export function mountRespirator(container, ctx) {
     const m = vent.measurements;
     const stale = vent.time - ui.lastBreathTime > 12;
     // volumet som faktisk når lungen (VTI); VTE er lavere ved lekkasje fordi en del av ekspirasjonen går forbi sensoren
-    gas.setVentilation({ vtMl: vent.disconnected || stale ? 0 : (m.vti ?? m.vte ?? 0), rate: stale ? 0 : (m.fTotal ?? 0), fio2: vent.settings.fio2 / 100, peep: vent.disconnected ? 0 : (m.peepTotal ?? vent.settings.peep), ibwKg: m.ibw ?? patientIbw(vent.patient) });
+    gas.setVentilation({ vtMl: vent.disconnected || stale ? 0 : (m.vti ?? m.vte ?? 0), rate: stale ? 0 : (m.fTotal ?? 0), breaths: vent.disconnected || stale ? null : m.recentBreaths, fio2: vent.settings.fio2 / 100, peep: vent.disconnected ? 0 : (m.peepTotal ?? vent.settings.peep), ibwKg: m.ibw ?? patientIbw(vent.patient) });
   }
   const offBreath = vent.onBreath((m) => { ui.lastBreathTime = vent.time; updateGasFromVent(); autoRange(m); evaluateAlarms(); updateMMP(m); renderMsgBar(); });
   function patientSoundLevels() {
