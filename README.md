@@ -75,8 +75,8 @@ ikke når du justerer den:
   undersøkelse årsaken, går du rett til tiltak etter 3 s. Du kan alltid hoppe over ventepausen
   («Gå videre nå») og undersøkelsesrundene («Gå rett til tiltak»). Etter tiltaket viser panelet hva som
   gjenstår (verdiene må være innenfor målet i 10 s). «Juster respiratoren» er alltid ett av tiltakene; velger du det
-  der det er riktig, får du ingen flere alternativer og må gjøre justeringen selv på
-  skjermen. Riktig tiltak løser casen når målingene har holdt seg normale i 15 s.
+  der det er riktig, gjør du justeringen selv på skjermen (i noen caser kommer det et
+  oppfølgingsvalg etterpå, f.eks. mageleie). Riktig tiltak løser casen når målingene har holdt seg normale i 15 s.
 - **Barnecaser (Case 20–31)**: tolv barn fra 14 måneder til 12 år der hovedtiltaket er å
   justere respiratoren: voksenoppsett på barn (feil høyde og Vt), PARDS med svikt i oksygenering,
   PARDS med for høyt Vt og platåtrykk, alvorlig astma, bronkiolitt, diabetisk ketoacidose,
@@ -86,6 +86,15 @@ ikke når du justerer den:
   treffer anbefalingen, gule «Obs»-meldinger ved farlige verdier, og blå tilleggsforklaringer.
   Alarmgrensene settes rundt barnets egne verdier, og respiratoren regner IBW for barn under
   152 cm med en pediatrisk formel.
+- **Voksencaser med respiratorjustering (Case 32–81)**: 50 voksne pasienter i fem grupper
+  (oksygenering, ARDS og mageleie; obstruktiv lungesykdom; ventilasjon, CO2 og syre–base;
+  asynkroni, spontan pust og avvenning; spesielle pasientgrupper). Målene bygger på lokal
+  metodebok for respiratorbehandling (HUS) og internasjonale retningslinjer, og feeden gir teori
+  underveis som i barnecasene. **Mageleie** er et tiltak: ved alvorlig ARDS kommer det som et nytt
+  valg etter at respiratoren er justert lungebeskyttende, dersom PaO2/FiO2 fortsatt er under 20 kPa
+  (ESICM 2023, PROSEVA). Tiden spoles fram, så effekten vises i løpet av omtrent ett minutt, og
+  Dynamic Lung viser «Mageleie». Der mageleie er kontraindisert (f.eks. høyt ICP), er det et skadelig valg.
+  I caselisten er casene gruppert etter tema.
 - **Kurvene viser det som skjer**: sekret gir sagtakker på flow- og trykkurven, hoste gir trykkspiss
   og flowstøt, cuff-lekkasje gjør at volumkurven ikke vender tilbake til null, kondensvann gir
   flowstøt i ekspirasjonen, og hjerteoscillasjoner gir små rippler ved ekspirasjonsslutt.

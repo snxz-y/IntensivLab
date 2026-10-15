@@ -108,6 +108,23 @@ trykkpneumothorax, rhonchi ved sekret) er standard klinisk undersøkelseslære.
 | Barnets mekanikk og gass | compliance ca. 0,5–1 ml/cmH2O/kg, resistance 20–60 cmH2O/(l/s) med liten tube, VCO2 4–6 ml/kg/min, totalt dødrom inkl. utstyr | Pedagogiske valg, UVERIFISERT |
 | Alarmgrenser for barn | Satt rundt barnets egne verdier ved casestart (MV og Vt ±50 %, fTotal + 15) | Eget valg, som «Auto» på C6 |
 
+### Voksencaser: respiratorjustering (modules/respirator/adultCases/)
+
+Casene 32–81 er bygget på disse kildene. Detaljer per case står i kommentarene i casefilene.
+
+| Hva | Verdi brukt | Kilde |
+|---|---|---|
+| Lokale mål for respiratorbehandling | FiO2 slik at PaO2 8–11 kPa; Vt 6–8 ml/kg IBW; frekvens 12–20; PEEP vanligvis 5–10, ved KOLS ca. 50–80 % av PEEPi; I:E 1:2; pH 7,35–7,45, PaCO2 5–6 kPa (høyere ved KOLS); forsiktig med trykk over 30–35; FiO2 > 0,6 over 1–2 døgn unngås (PEEP, rekruttering, I:E 1:1, permissiv hyperkapni pH 7,20–7,35, bukleie) | Metodebok i akutt indremedisin (HUS), «Respiratorbehandling» v1.0, publisert 29.05.2023 (metodebok.no) |
+| Ekstubasjonskriterier og nedtrapping | FiO2 < 0,35, PEEP ≤ 5, trykkstøtte < 8; SPONT trappes ned ca. 2 cmH2O av gangen til CPAP | Samme |
+| Lungebeskyttende ventilasjon ved ARDS | Vt 6 ml/kg PBW (4–8), Pplat ≤ 30, PEEP etter FiO2-tabell | ARDSNet, *N Engl J Med* 2000;342:1301–8 ([DOI](https://doi.org/10.1056/NEJM200005043421801)); Fan et al., ATS/ESICM/SCCM, *Am J Respir Crit Care Med* 2017;195:1253–63 ([DOI](https://doi.org/10.1164/rccm.201703-0548ST)) |
+| Drivtrykk | Lavere drivtrykk (Pplat − PEEP) er sterkest knyttet til overlevelse; ≤ 15 cmH2O brukes som mål | Amato et al., *N Engl J Med* 2015;372:747–55 ([DOI](https://doi.org/10.1056/NEJMsa1410639)) |
+| Mageleie: indikasjon | Moderat–alvorlig ARDS: PaO2/FiO2 < 150 mmHg (20 kPa) med PEEP ≥ 5 tross optimaliserte innstillinger; start tidlig etter en stabiliseringsperiode med lavt Vt og justert PEEP; økter ≥ 16 timer (sterke anbefalinger) | Grasselli et al., ESICM-retningslinjer for ARDS, *Intensive Care Med* 2023;49:727–59, anbefaling 7.1 og 7.2 ([DOI](https://doi.org/10.1007/s00134-023-07050-7)) |
+| Mageleie: effekt | 28-dagers dødelighet 16,0 % mot 32,8 % (HR 0,39) ved P/F < 150 mmHg med FiO2 ≥ 0,6, PEEP ≥ 5 og Vt ca. 6 ml/kg, bekreftet etter 12–24 t | Guérin et al., PROSEVA, *N Engl J Med* 2013;368:2159–68 ([DOI](https://doi.org/10.1056/NEJMoa1214103)) |
+| Mageleie: stoppkriterier | P/F ≥ 150 mmHg med PEEP ≤ 10 og FiO2 ≤ 0,6 i ryggleie minst 4 t etter siste økt; fall i P/F > 20 % før to påfølgende økter; komplikasjoner (utilsiktet ekstubasjon, hovedbronkusintubasjon, tubeobstruksjon, hemoptyse, SpO2 < 85 % på FiO2 1,0 > 5 min, hjertestans, puls < 30, systolisk BT < 60 > 5 min) | PROSEVA (som over) |
+| Mageleie: kontraindikasjoner | ICP > 30 mmHg eller CPP < 60 mmHg; massiv hemoptyse; trakeal- eller thoraxkirurgi og ansiktstraume/-kirurgi siste 15 dager; DVT/LE behandlet siste 2 døgn; pacemaker siste 2 døgn; ustabile frakturer i columna, femur, brystkasse eller bekken; arterietrykk < 70 mmHg trass vasopressor; graviditet; bronkopleural fistel med ett fremre dren | PROSEVA-protokollen, [ClinicalTrials.gov NCT00527813](https://clinicaltrials.gov/study/NCT00527813) (eksklusjonskriterier i studien, ikke en egen retningslinje) |
+| Mageleie: sykepleie | Trykkskader (panne, hake, bryst, skuldre, bekken, knær), øyne, tubesikring og utilsiktet ekstubasjon, nerveskader, ernæring; armstilling skiftes jevnlig | AACN-praksisvarsel om mageleie, omtalt i [Relias Media](https://www.reliasmedia.com/articles/practice-alert-provides-critical-care-nurses-safety-tips-for-prone-positioning); oversikt i [Nursing 2024](https://www.qgdigitalpublishing.com/article/Prone+positioning+for+patients+with+ARDS/4725855/815480/article.html) |
+| Mageleie i simulatoren | Tiden komprimeres: effekten (mindre shunt, litt høyere compliance) kommer gradvis over ca. 60 s, som står for omtrent én time | Modellvalg, UVERIFISERT størrelse |
+
 ## Lyd (core/audio/ventSounds.js)
 
 Alarmtonene er stilt inn etter to lydopptak fra Hamiltons C6-simuleringsprogramvare (analysert med spektrogram):
