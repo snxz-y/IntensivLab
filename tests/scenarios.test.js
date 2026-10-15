@@ -15,7 +15,7 @@ function rig(def, variantIndex = 0) {
     getGas: () => ({ ...gas.params }), setGas: (g) => gas.setParams(g),
     setDisconnected: (v) => vent.setDisconnected(v),
     setLeak: (f) => vent.setLeak(f),
-    setTriggerNoise: (n) => vent.setTriggerNoise(n),
+    setTriggerNoise: (n, md) => vent.setTriggerNoise(n, md),
   };
   const rng = (() => { let i = 0; return () => (i++ === 0 ? variantIndex / def.variants.length + 1e-6 : 0.5); })();
   const sit = createSituation(def, { rng, hooks });
@@ -23,7 +23,7 @@ function rig(def, variantIndex = 0) {
     const m = vent.measurements;
     gas.setVentilation({ vtMl: vent.disconnected ? 0 : (m.vte ?? 0), rate: m.fTotal ?? 0, fio2: vent.settings.fio2 / 100, peep: m.peepTotal ?? vent.settings.peep, ibwKg: m.ibw ?? 70 });
   };
-  const run = (seconds) => { for (let i = 0; i < seconds; i++) { vent.run(1); update(); gas.step(1); sit.tick(vent.time, { m: vent.measurements, gas: gas.state, settings: vent.settings, pmax: 40, disconnected: vent.disconnected }); } };
+  const run = (seconds) => { for (let i = 0; i < seconds; i++) { vent.run(1); update(); gas.step(1); sit.tick(vent.time, { m: vent.measurements, gas: gas.state, settings: vent.settings, pmax: 40, disconnected: vent.disconnected, patient: vent.patient }); } };
   return { vent, gas, sit, run };
 }
 

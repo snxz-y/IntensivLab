@@ -326,3 +326,9 @@
 .tool-center { display: grid; gap: 14px; justify-items: center; width: 100%; max-width: 420px; }
 .tool-btn { width: 300px; background: #d0d0d0; color: #222; font-size: 1rem; }
 .tool-btn.holding { background: #f2c200; }
+
+/* Teori i meldingsfeeden (barnecaser): riktig = grønn, obs = gul, info = blå */
+.feed .msg.obs { border-left-color: var(--warn); background: rgba(242,184,75,0.08); }
+.feed .msg.info { border-left-color: var(--accent); background: rgba(76,194,255,0.07); }
+.feed .msg.riktig { background: rgba(63,209,138,0.07); }
+.task-item .tag-barn { font-size: 0.7rem; font-weight: 600; padding: 1px 6px; border-radius: 4px; background: rgba(76,194,255,0.18); color: var(--accent); }

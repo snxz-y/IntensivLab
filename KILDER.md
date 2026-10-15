@@ -36,6 +36,9 @@ Status: alle fem faser ferdig. Oppføringer merket UVERIFISERT bør sjekkes mot 
 - SPONT-trigging beregnes fra hvor mye pasienten «trekker» under PEEP; flowtrigger sammenlikner dette delt på R med innstilt L/min.
 - VTI regnes som netto inspirert volum: slipper pasienten innsatsen midt i et trykkregulert pust, kan volum gå tilbake i kretsen (aktiv ekspirasjonsventil), og det trekkes fra. Dermed er VTI ≈ VTE uten lekkasje, og APV-regulatoren sikter på volumet som faktisk blir i lungen.
 - Kurveartefakter (core/sim/ventilator.js, measuredSignals): sekret gir en sagtakket overlagring på målt flow og trykk (11–15 Hz, amplitude proporsjonal med flow); hjerteoscillasjoner gir små rippler på flow (±0,7 l/min) og trykk (±0,25 cmH2O) ved ekspirasjonsslutt; hoste modelleres som ekspiratorisk muskeltrykk 25 cmH2O i 0,35 s. Sagtakkmønsteret ved sekret og lekkasjetegnet på volumkurven (volumet vender ikke til null) er velkjente kurvetegn i lærebøker om respiratorkurver; tallene er egne valg. Målt volum integreres fra målt flow, og ekspirasjonsflow forbi en lekkasje måles ikke, slik en proksimal flowsensor ser det.
+- Gassmodellen kan ha et totalt dødrom per case (anatomisk + fysiologisk + utstyr); ellers 2,2 ml/kg IBW. Alveolær ventilasjon regnes fra VTI, volumet som når lungen; VTE er lavere ved lekkasje.
+- Lekkasjemodus for triggerstøy: når ekspirasjonsflowen har ebbet ut, ser lekkasjeflowen ut som et pusteforsøk (autotrigging ved ucuffet tube).
+- Pasientens egen pust kan svare på innstillingene (effortFn), f.eks. roligere pust når støtten er nok. Sammenhengen er en pedagogisk forenkling.
 - Triggerstøy (kondensvann, lekkasje) modelleres som korte flowstøt på 0,25 s hvert 1,2–2,7 s under ekspirasjonen; er støyen større enn innstilt flowtrigger (eller tilsvarende trykkfall ved trykktrigger), autotrigger respiratoren.
 - (S)CMV+ (APVcmv) er modellert som trykkontroll der ΔPinsp justeres ±3 cmH2O per pust (maks) mot innstilt Vt, mellom 5 cmH2O og Plimit − PEEP. Hamiltons faktiske regulator er ikke offentlig beskrevet; at APV er trykkregulert med volummål og begrenses av Plimit = Pmax − 10 er bekreftet i håndboken. Den gamle flowstyrte (S)CMV beholdes for undervisning og tester.
 
@@ -76,6 +79,28 @@ trykkpneumothorax, rhonchi ved sekret) er standard klinisk undersøkelseslære.
 | PCV+ ved ARDS (case 18) | Vt faller når compliance faller; hold drivtrykk ≤ 15 cmH2O, øk frekvens (opp mot 30–35), godta moderat hyperkapni, bedre oksygenering med PEEP/O2 | ARDS Network, *N Engl J Med* 2000;342:1301–8 (Vt 6 ml/kg, Pplat ≤ 30, rate opp til 35); Amato et al., *N Engl J Med* 2015;372:747–55 (drivtrykk). |
 | Sekret hos KOLS i trykkstøtte (case 19) | I trykkstøtte gir økt motstand lavere Vt og høyere frekvens (trykket er begrenset); ETS 30–40 % hos KOLS for kortere inspirasjon | Følger av trykkstøttens virkemåte; ETS-anbefalingen er vanlig praksis og Hamiltons egne råd, UVERIFISERT mot primærkilde. |
 | Effektstørrelser | utmattelse Pmus 5→3 cmH2O og f 16→32; kondensstøy 4 l/min; compliance ×1,6 ved bedring; propofol gir Pmus 0; ARDS compliance ×0,55 og shunt + 0,15; sekret R × 1,7 | Pedagogiske valg, UVERIFISERT. |
+
+### Barnecaser (modules/respirator/childCases.js)
+
+| Hva | Verdi brukt | Kilde |
+|---|---|---|
+| IBW for barn under 152 cm | IBW = 2,396 · e^(0,01863 · høyde i cm), kjønnsuavhengig | Traub–Kichen 1983, 50-persentil vekt for høyde, 1–17 år, høyde over 74 cm ([oversikt over formler](https://intjem.biomedcentral.com/articles/10.1186/s12245-017-0156-5/tables/2)). Hvilken formel HAMILTON-C6 selv bruker for barn er UVERIFISERT. |
+| Vt | 6–8 ml/kg IBW; under 6 når platå- eller drivtrykk ellers overskrides | PALICC-2 (Emeriaud et al., *Pediatr Crit Care Med* 2023;24:143–68), gjengitt i [RT-oversikt over PALICC-2](https://www.continued.com/respiratory-therapy/ask-the-experts/what-tidal-volume-palicc-2-recommend) |
+| Pplateau og drivtrykk | Pplat ≤ 28 cmH2O (29–32 ved stiv brystvegg), drivtrykk ≤ 15 cmH2O | PALICC-2, [eksekutivsammendrag](https://achpccg.com/wp-content/uploads/2023/10/Emeriaud_2023_Executive-Summary-of-the-Second-International-Guidelines-for-the-Diagnosis-and-Management-of-Pediatric-Acute-Respiratory-Distress-Sydnrome-PALICC-2.pdf) |
+| PEEP | Titreres mot oksygenering, hemodynamikk og compliance; minst ARDSNet «lav PEEP/høy FiO2» | PALICC-2 |
+| SpO2-mål | 92–97 % ved mild til moderat PARDS; laveste FiO2 som når målet | PALICC-2 ([Medscape-sammendrag](https://reference.medscape.com/viewarticle/988914)) |
+| Permissiv hyperkapni | pH ned mot 7,20 for å holde trykk- og volumgrenser | PALICC-2 |
+| Spontanpustetest | CPAP ≤ 5 uten trykkstøtte etterligner best pustearbeidet etter ekstubasjon; CPAP alene ved høy risiko | PALICC-2 monitorering ([PMC9980912](https://pmc.ncbi.nlm.nih.gov/articles/PMC9980912)); Abu-Sultaneh et al., *Am J Respir Crit Care Med* 2023;207:17–28 (PALISI), gjengitt sekundært |
+| Astma | Lav frekvens, lang ekspirasjon (I:E 1:3–1:5), lav PEEP, permissiv hyperkapni (pH > 7,2) | Oversiktsartikler og pediatriske undervisningskilder ([PaediatricFOAM](https://www.paediatricfoam.com/2017/12/asthma-ventilation/), [Springer 2026](https://link.springer.com/article/10.1007/s41030-026-00374-x)); nøyaktige tall varierer mellom kilder |
+| Bronkiolitt | Trykkontrollert ventilasjon, permissiv hyperkapni; ved obstruktivt mønster følges luftfangst | [Ventilación mecánica en la bronquiolitis](https://portalcientifico.sergas.gal/documentos/5ecc4fe12999527c372dd080?lang=en); [PMC7874293](https://pmc.ncbi.nlm.nih.gov/articles/PMC7874293). Lav frekvens og lang ekspirasjon følger av fysiologien, ikke av en egen anbefaling. |
+| DKA | Minuttvolumet etter intubasjon må matche den kompensatoriske hyperventileringen; aggressiv hyperventilering forbundet med dårligere utfall ved hjerneødem | [PulmCCM: The physiologically difficult airway](https://www.pulmccm.org/p/physiologically-difficult-airway-part-2); Marcin et al., *J Pediatr* 2002;141:793–7. Ingen pediatrisk protokoll med eksakte respiratormål funnet; målene i casen er egne valg. |
+| Hodeskade | Unngå profylaktisk hyperventilering til PaCO2 < 30 mmHg (4,0 kPa) de første 48 timene; normokapni som mål | Kochanek et al., *Pediatr Crit Care Med* 2019;20:280–9 ([Brain Trauma Foundation](https://braintrauma.org/coma/guidelines/pediatric)). Målet 4,7–5,3 kPa (35–40 mmHg) er vanlig institusjonell praksis, ikke ordlyd i retningslinjen. |
+| Lekkasje og autotrigging | Lekkasje rundt ucuffet tube er vanligere hos barn og kan gi trigger-asynkroni; mindre følsom trigger | [Critical Care 2004](https://ccforum.biomedcentral.com/articles/10.1186/cc2954); [LITFL](https://litfl.com/auto-triggering-of-the-ventilator/) |
+| Nevromuskulær sykdom | Svake pustemuskler; mer støtte og kontrollert modus ved utmattelse | [Fauroux: optimal ventilatory mode for neuromuscular patients](https://hopital-necker.aphp.fr/wp-content/blogs.dir/180/files/2017/02/Is-there-an-optimal-ventilatory-mode-for-neuromuscular-patients_Fauroux.pdf); ingen fast terskel for modusbytte |
+| Vt over 10 ml/kg | Unngås | Pediatrisk konsensus gjengitt i [PMC6399049](https://pmc.ncbi.nlm.nih.gov/articles/PMC6399049) |
+| Frekvens etter alder | ca. 25–45 (1–2 år), 20–30 (2–6 år), 20–25 (6–12 år) som utgangspunkt | [WikEM: Initial mechanical ventilation settings (peds)](https://wikem.org/wiki/Initial_mechanical_ventilation_settings_(peds)); kildene spriker |
+| Barnets mekanikk og gass | compliance ca. 0,5–1 ml/cmH2O/kg, resistance 20–60 cmH2O/(l/s) med liten tube, VCO2 4–6 ml/kg/min, totalt dødrom inkl. utstyr | Pedagogiske valg, UVERIFISERT |
+| Alarmgrenser for barn | Satt rundt barnets egne verdier ved casestart (MV og Vt ±50 %, fTotal + 15) | Eget valg, som «Auto» på C6 |
 
 ## Lyd (core/audio/ventSounds.js)
 

@@ -74,6 +74,15 @@ ikke når du justerer den:
   gjenstår (verdiene må være innenfor målet i 10 s). «Juster respiratoren» er alltid ett av tiltakene; velger du det
   der det er riktig, får du ingen flere alternativer og må gjøre justeringen selv på
   skjermen. Riktig tiltak løser casen når målingene har holdt seg normale i 15 s.
+- **Barnecaser (Case 20–31)**: tolv barn fra 14 måneder til 12 år der hovedtiltaket er å
+  justere respiratoren: voksenoppsett på barn (feil høyde og Vt), PARDS med svikt i oksygenering,
+  PARDS med for høyt Vt og platåtrykk, alvorlig astma, bronkiolitt, diabetisk ketoacidose,
+  alvorlig hodeskade, lekkasje rundt ucuffet tube, nevromuskulær sykdom, ekstubasjonstest,
+  PCV+ når lungen bedres, og hyperoksi. Når du har valgt «Juster respiratoren», står målet i
+  panelet, og meldingsfeeden gir teori underveis: grønne «Riktig!»-meldinger når en innstilling
+  treffer anbefalingen, gule «Obs»-meldinger ved farlige verdier, og blå tilleggsforklaringer.
+  Alarmgrensene settes rundt barnets egne verdier, og respiratoren regner IBW for barn under
+  152 cm med en pediatrisk formel.
 - **Kurvene viser det som skjer**: sekret gir sagtakker på flow- og trykkurven, hoste gir trykkspiss
   og flowstøt, cuff-lekkasje gjør at volumkurven ikke vender tilbake til null, kondensvann gir
   flowstøt i ekspirasjonen, og hjerteoscillasjoner gir små rippler ved ekspirasjonsslutt.

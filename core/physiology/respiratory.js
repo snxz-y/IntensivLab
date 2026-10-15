@@ -108,8 +108,16 @@ export function predictedBodyWeightArdsNet(heightCm, sex) {
  * @param {'M'|'K'} sex
  */
 export function idealBodyWeightHamilton(heightCm, sex) {
+  // Barn (under 152 cm): Traub–Kichen 1983, IBW = 2,396 · e^(0,01863 · høyde), kjønnsuavhengig,
+  // utledet for 1–17 år og høyde over 74 cm (50-persentil vekt for høyde). Se KILDER.md.
+  if (heightCm < 152) return idealBodyWeightChild(heightCm);
   const ibw = sex === 'M' ? 0.9079 * heightCm - 88.022 : 0.9049 * heightCm - 92.006;
   return Math.max(0, ibw);
+}
+
+/** Ideell kroppsvekt for barn (Traub–Kichen 1983), kg. */
+export function idealBodyWeightChild(heightCm) {
+  return 2.396 * Math.exp(0.01863 * heightCm);
 }
 
 /** Vt per kg IBW (ml/kg). */

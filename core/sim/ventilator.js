@@ -96,6 +96,7 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
   // Støy på triggersignalet (kondensvann i slangen, lekkasje, hjerteoscillasjoner): korte «flowstøt» i L/min
   // under ekspirasjonen. Er støyen større enn innstilt trigger, autotrigger respiratoren.
   let triggerNoise = 0;
+  let noiseMode = 'burst'; // 'burst' = korte støt (kondensvann), 'leak' = lekkasjeflow mot slutten av ekspirasjonen
   let lastNoise = 0;
   // Artefakter på det målte signalet (det kurvene viser): sekret gir sagtakker på flow og trykk,
   // hjerteoscillasjoner gir små rippler ved ekspirasjonsslutt. Fysikken i lungemodellen påvirkes ikke.
@@ -112,6 +113,8 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
   const noiseRand = () => { noiseSeed = (noiseSeed * 1103515245 + 12345) & 0x7fffffff; return noiseSeed / 0x7fffffff; };
   function noiseNow() {
     if (triggerNoise <= 0) return 0;
+    // Lekkasje: når ekspirasjonsflowen har ebbet ut, ser lekkasjeflowen ut som et pusteforsøk
+    if (noiseMode === 'leak') return phase === 'exp' && Math.abs(lung.state.flow) * 60 < triggerNoise * 1.5 ? triggerNoise : 0;
     if (noiseNext === Infinity) noiseNext = t + 0.8 + noiseRand() * 1.2;
     if (t >= noiseNext) { noiseEnd = noiseNext + 0.25; noiseNext = noiseEnd + 1.2 + noiseRand() * 1.5; }
     return t < noiseEnd ? triggerNoise : 0;
@@ -502,7 +505,7 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
     /** Hoste: ekspiratorisk muskeltrykk (cmH2O) i 0,35 s. */
     cough(strength = 25) { coughUntil = t + COUGH_DURATION; coughStrength = strength; },
     /** Støy på triggersignalet i L/min (0 = av). Brukes av caser med kondensvann eller lekkasje i kretsen. */
-    setTriggerNoise(lpm) { triggerNoise = Math.max(0, lpm || 0); if (triggerNoise <= 0) { noiseNext = Infinity; noiseEnd = -Infinity; } },
+    setTriggerNoise(lpm, mode = 'burst') { triggerNoise = Math.max(0, lpm || 0); noiseMode = mode; if (triggerNoise <= 0) { noiseNext = Infinity; noiseEnd = -Infinity; } },
     setLeak(fraction) { leak = Math.min(0.9, Math.max(0, fraction || 0)); },
 
     setSettings(partial) {

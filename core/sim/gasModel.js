@@ -13,8 +13,9 @@
 import { steadyStateGas, arterialFromShunt, effectiveShunt } from '../physiology/gasExchange.js';
 import { alveolarPo2 } from '../physiology/acidbase.js';
 
-export function createGasModel({ shunt = 0.05, recruitability = 0, vco2 = 200, hbGL = 120, petGap = 0.5, tauSpo2 = 30, tauCo2 = 180, tauAlv = 20, tauApnea = 90 } = {}) {
-  const p = { shunt, recruitability, vco2, hbGL, petGap };
+export function createGasModel({ shunt = 0.05, recruitability = 0, vco2 = 200, hbGL = 120, petGap = 0.5, deadspaceMl = null, tauSpo2 = 30, tauCo2 = 180, tauAlv = 20, tauApnea = 90 } = {}) {
+  // deadspaceMl: totalt dødrom (anatomisk + fysiologisk + utstyr); null = anatomisk 2,2 ml/kg IBW
+  const p = { shunt, recruitability, vco2, hbGL, petGap, deadspaceMl };
   const state = { spo2: 0.97, sao2: 0.97, paco2: 5.3, pao2: 12, pao2Alv: 13, va: 4, target: null };
   let vent = null;
 

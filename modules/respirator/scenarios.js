@@ -12,6 +12,7 @@
  * (UVERIFISERT, se KILDER.md).
  */
 import { getProfile } from './profiles.js';
+import { CHILD_SITUATIONS } from './childCases.js';
 
 export const ACTIONS = {
   lytt: { label: 'Lytt på lungene', kind: 'undersok' },
@@ -415,6 +416,7 @@ export const SITUATIONS = [
     }],
   },
 ];
+SITUATIONS.push(...CHILD_SITUATIONS);
 
 export function getSituation(id) { return SITUATIONS.find((s) => s.id === id) ?? null; }
 
@@ -443,7 +445,7 @@ export function createSituation(def, { rng = Math.random, hooks } = {}) {
   const st = {
     id: def.id, variantId: variant.id, status: 'baseline', tStart: null, tEvent: null, tFired: null, tFixed: null, tResolved: null,
     log: [], wrongActions: 0, examined: new Set(), baseline: null, fixed: false, ramp: null, resolveSince: null, tFull: null,
-    messages: [], pending: [], cueIndex: 0, flags: {}, factor: 0,
+    messages: [], pending: [], cueIndex: 0, flags: {}, factor: 0, taught: new Set(),
   };
   const vitalsBase = { ...VITALS_BASE, ...(def.vitalsBase ?? {}) };
   const decision = { pending: null, availableAt: Infinity, examsDone: 0, tried: new Set(), done: false };
@@ -466,8 +468,8 @@ export function createSituation(def, { rng = Math.random, hooks } = {}) {
   }
   function shuffle(r, arr) { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 
-  function say(t, who, text) {
-    const m = { t, who, text };
+  function say(t, who, text, kind) {
+    const m = { t, who, text, ...(kind ? { kind } : {}) };
     st.messages.push(m);
     st.pending.push(m);
   }
@@ -484,7 +486,7 @@ export function createSituation(def, { rng = Math.random, hooks } = {}) {
     hooks.setGas({ shunt: b.gas.shunt + (e.shuntAdd ?? 0) * scale, petGap: 0.5 + ((e.petGap ?? 0.5) - 0.5) * scale });
     hooks.setDisconnected(!!e.disconnect && scale >= 1);
     hooks.setLeak?.((e.leak ?? 0) * scale);
-    hooks.setTriggerNoise?.((e.triggerNoise ?? 0) * scale);
+    hooks.setTriggerNoise?.((e.triggerNoise ?? 0) * scale, e.noiseMode ?? 'burst');
     hooks.setArtifacts?.({ secretions: (variant.sounds?.secretions ?? 0) * scale });
   }
 
@@ -533,6 +535,23 @@ export function createSituation(def, { rng = Math.random, hooks } = {}) {
       if (variant.sounds?.cough && st.factor > 0.3 && !st.fixed) { st.nextCough ??= t + 4; if (t >= st.nextCough) { hooks.cough?.(); st.nextCough = t + 18 + rng() * 25; } }
       if (m.autoPeep > 4 && !st.flags.autopeep) { st.flags.autopeep = true; say(t, 'respirator', `AutoPEEP ${m.autoPeep.toFixed(0)} cmH2O: ekspirasjonsflowen når ikke null.`); }
 
+      // pasientens egen pust som svarer på respiratorinnstillingene (f.eks. hviler ved nok støtte)
+      if (st.status === 'active' && variant.effortFn && !st.ramp) {
+        let e = null;
+        try { e = variant.effortFn({ ...ctx, fixed: st.fixed }); } catch { e = null; }
+        const key = e ? JSON.stringify(e) : null;
+        if (e && key !== st.effortKey) { st.effortKey = key; hooks.setPatient({ effort: { ...hooks.getPatient().effort, ...e } }); }
+      }
+      // teori underveis: regler som utløses én gang når betingelsen er oppfylt (riktig) eller brutt (obs)
+      if (st.status !== 'baseline' && variant.teach) {
+        for (const [i, r] of variant.teach.entries()) {
+          if (st.taught.has(i)) continue;
+          if (r.after === 'juster' && !decision.done) continue;
+          let hit = false;
+          try { hit = !!r.when({ ...ctx, fixed: st.fixed }); } catch { hit = false; }
+          if (hit) { st.taught.add(i); say(t, 'teori', r.text, r.kind ?? 'riktig'); }
+        }
+      }
       if (st.status === 'active' && !decision.done && !decision.pending) {
         if (decision.availableAt === Infinity) decision.availableAt = st.tFired + FIRST_DECISION;
         // har monitor eller respirator allerede varslet, er det noe å reagere på: ikke la brukeren vente
@@ -568,7 +587,7 @@ export function createSituation(def, { rng = Math.random, hooks } = {}) {
       if (id === 'juster' && variant.ventFix && variant.fixes.juster) {
         res = this.act('juster', t);
         decision.done = true;
-        say(t, 'kollega', 'Juster respiratoren. Situasjonen regnes som løst når verdiene er innenfor målet.');
+        say(t, 'kollega', variant.target ? `Juster respiratoren. Mål: ${variant.target}` : 'Juster respiratoren. Situasjonen regnes som løst når verdiene er innenfor målet.');
       } else if (id === 'juster') {
         res = { kind: 'noytral', text: variant.neutral.juster ?? 'Respiratorjustering løser ikke dette alene.' };
         st.wrongActions += 1;
@@ -593,7 +612,17 @@ export function createSituation(def, { rng = Math.random, hooks } = {}) {
     /** Hent nye meldinger siden sist. */
     drain() { const out = st.pending; st.pending = []; return out; },
     /** Vitale tegn nå. */
-    vitals(ctx) { return computeVitals(vitalsBase, variant.vitals, st.fixed ? Math.min(st.factor, 0.3) : st.factor, ctx.gas?.spo2 ?? 1); },
+    vitals(ctx) {
+      const v = computeVitals(vitalsBase, variant.vitals, st.fixed ? Math.min(st.factor, 0.3) : st.factor, ctx.gas?.spo2 ?? 1);
+      // vitale tegn som følger respiratorinnstillingene (f.eks. blodtrykk som faller med AutoPEEP)
+      if (variant.vitalsFn && st.status !== 'baseline' && ctx.m) {
+        const d = variant.vitalsFn(ctx) ?? {};
+        v.hr = Math.round(v.hr + (d.hr ?? 0)); v.sys = Math.round(v.sys + (d.sys ?? 0)); v.dia = Math.round(v.dia + (d.dia ?? 0));
+      }
+      return v;
+    },
+    /** Målet for respiratorjusteringen (vises når brukeren har valgt «Juster respiratoren»). */
+    get target() { return variant.target ?? null; },
     /** Utfør handling. Returnerer { kind, text }. kind: 'ledetrad' | 'riktig' | 'delvis' | 'skadelig' | 'noytral' | 'for-tidlig' */
     act(actionId, t) {
       const a = ACTIONS[actionId];
@@ -608,7 +637,8 @@ export function createSituation(def, { rng = Math.random, hooks } = {}) {
       } else if (variant.fixes[actionId]) {
         const f = variant.fixes[actionId];
         if (f.partial) {
-          applyEffect({ ...variant.effect, ...f.partial }, 1);
+          // tom «partial» (f.eks. «Juster respiratoren»): pasienten endres ikke, brukeren må justere selv
+          if (Object.keys(f.partial).length) applyEffect({ ...variant.effect, ...f.partial }, 1);
           if (f.partial.effort) hooks.setPatient({ effort: f.partial.effort });
           res = { kind: 'delvis', text: f.text };
           if (f.recover >= 0) st.fixed = true;
