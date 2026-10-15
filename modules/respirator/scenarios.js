@@ -506,7 +506,7 @@ export function createSituation(def, { rng = Math.random, hooks } = {}) {
       effort: st.effortOverride ? { ...effort, ...st.effortOverride } : effort,
     };
     hooks.setPatient(p);
-    hooks.setGas({ shunt: Math.max(0.02, b.gas.shunt + (e.shuntAdd ?? 0) * scale + (ex.shuntAdd ?? 0) * x + (mm.shuntAdd ?? 0)), petGap: 0.5 + ((e.petGap ?? 0.5) - 0.5) * scale });
+    hooks.setGas({ shunt: Math.max(0.02, b.gas.shunt + (e.shuntAdd ?? 0) * scale + (ex.shuntAdd ?? 0) * x + (mm.shuntAdd ?? 0)), petGap: (b.gas.petGap ?? 0.5) + ((e.petGap ?? b.gas.petGap ?? 0.5) - (b.gas.petGap ?? 0.5)) * scale });
     hooks.setDisconnected(!!e.disconnect && scale >= 1);
     hooks.setLeak?.((e.leak ?? 0) * scale + (mm.leak ?? 0));
     hooks.setTriggerNoise?.((e.triggerNoise ?? 0) * scale, e.noiseMode ?? 'burst');
