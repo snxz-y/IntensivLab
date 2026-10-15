@@ -248,7 +248,7 @@ export function mountRespirator(container, ctx) {
   }
   function drawDynamicLungText() {
     const p = vent.patient, m = vent.measurements, v = currentVitals();
-    dlInfo.replaceChildren(...(p.group === 'neo' ? [h('div', {}, h('b', {}, 'Barn/nyfødt')), h('div', {}, 'Vekt: ', h('b', {}, fmt(p.weightKg, 1)), ' kg')] : [h('div', {}, h('b', {}, p.sex === 'K' ? 'Kvinne' : 'Mann')), h('div', {}, h('b', {}, String(p.height)), ' cm'), h('div', {}, 'IBW: ', h('b', {}, fmt(m.ibw ?? patientIbw(p), 0)), ' kg')]));
+    dlInfo.replaceChildren(...(p.group === 'neo' ? [h('div', {}, h('b', {}, 'Barn/nyfødt')), h('div', {}, 'Vekt: ', h('b', {}, fmt(p.weightKg, 1)), ' kg')] : [h('div', {}, h('b', {}, p.sex === 'K' ? 'Kvinne' : 'Mann')), h('div', {}, h('b', {}, String(p.height)), ' cm'), h('div', {}, 'IBW: ', h('b', {}, fmt(m.ibw ?? patientIbw(p), 0)), ' kg')]), ...(ui.situation?.sit?.prone ? [h('div', {}, h('b', {}, 'Mageleie'))] : []));
     dlSide.replaceChildren(h('div', {}, 'Pplateau', h('span', { class: 'dl-big' }, fmt(m.pplat, 0)), h('small', {}, 'cmH2O')), h('div', {}, 'AutoPEEP', h('span', { class: 'dl-big' }, fmt(m.autoPeep, 1)), h('small', {}, 'cmH2O')));
     dlRow.replaceChildren(cell('Rinsp', fmt(m.rinsp, 0), 'cmH2O/l/s'), cell('Cstat', fmt(m.cstat, 1), 'ml/cmH2O'), cell('PetCO2', fmt(vent.disconnected ? 0 : gas.petco2, 1), 'kPa'), cell('SpO2', fmt(gas.state.spo2 * 100, 0), '%'), cell('Puls', String(v.hr), '1/min'));
   }
@@ -890,8 +890,12 @@ export function mountRespirator(container, ctx) {
     const pick = (list) => startSituation(list[Math.floor(Math.random() * list.length)]);
     body.append(h('div', { class: 'row', style: { marginBottom: '8px', flexWrap: 'wrap' } }, button('Tilfeldig case', { variant: 'primary', onClick: () => pick(idx) }), button('Tilfeldig voksencase', { onClick: () => pick(adults) }), button('Tilfeldig barnecase', { onClick: () => pick(kids) })));
     const item = (i) => h('div', { class: 'task-item' }, h('h3', {}, `Case ${i + 1}`, SITUATIONS[i].pediatric ? h('span', { class: 'tag-barn' }, 'Barn') : null), h('div', { class: 'muted', style: { fontSize: '0.9rem' } }, SITUATIONS[i].vignette), h('div', {}, button('Start', { small: true, onClick: () => startSituation(i) })));
-    body.append(h('div', { class: 'cat-head' }, 'Voksne'), ...adults.map(item));
-    body.append(h('div', { class: 'cat-head' }, 'Barn: respiratorjustering med teori underveis'), ...kids.map(item));
+    // grupper i listen: egne grupper for voksencasene med respiratorjustering, barn til slutt
+    const groupOf = (i) => SITUATIONS[i].group ?? (SITUATIONS[i].pediatric ? 'Barn: respiratorjustering med teori underveis' : 'Voksne: hendelser');
+    const groups = [];
+    for (const i of [...adults, ...kids]) { const g = groupOf(i); let e = groups.find((x) => x.name === g); if (!e) groups.push(e = { name: g, items: [] }); e.items.push(i); }
+    groups.sort((a, b) => (a.name.startsWith('Barn') ? 1 : 0) - (b.name.startsWith('Barn') ? 1 : 0));
+    for (const g of groups) body.append(h('div', { class: 'cat-head' }, `${g.name} (${g.items.length})`), ...g.items.map(item));
   }
   function renderDecision() {
     const S = ui.situation; if (!S?.decisionEl) return;
@@ -905,7 +909,7 @@ export function mountRespirator(container, ctx) {
     } else {
       const wait = S.sit.nextDecisionIn(vent.time);
       const st = S.sit.state;
-      if (st.status === 'active' && wait > 0) S.decisionEl.append(h('div', { class: 'decision', style: { borderColor: 'var(--border)' } }, h('span', { class: 'wait' }, `Observer pasienten og respiratoren … neste valg om ${fmt(wait, 0)} s`), h('div', { class: 'row', style: { marginTop: '8px' } }, button('Gå videre nå', { small: true, onClick: () => { S.sit.skipWait(vent.time); S.sit.tick(vent.time, { m: vent.measurements, gas: gas.state, settings: vent.settings, pmax: vent.settings.pmax, disconnected: vent.disconnected, patient: vent.patient }); for (const msg of S.sit.drain()) addFeed(msg); renderDecision(); } }))));
+      if (st.status === 'active' && wait > 0) S.decisionEl.append(h('div', { class: 'decision', style: { borderColor: 'var(--border)' } }, h('span', { class: 'wait' }, S.sit.justert && S.sit.target ? `Juster respiratoren. Mål: ${S.sit.target} Neste valg om ${fmt(wait, 0)} s.` : `Observer pasienten og respiratoren … neste valg om ${fmt(wait, 0)} s`), h('div', { class: 'row', style: { marginTop: '8px' } }, button('Gå videre nå', { small: true, onClick: () => { S.sit.skipWait(vent.time); S.sit.tick(vent.time, { m: vent.measurements, gas: gas.state, settings: vent.settings, pmax: vent.settings.pmax, disconnected: vent.disconnected, patient: vent.patient }); for (const msg of S.sit.drain()) addFeed(msg); renderDecision(); } }))));
       else if (st.status === 'active' && S.sit.decisionDone) {
         // tiltaket er gjort (eller respiratoren skal justeres): vis hva vi venter på, så ventetiden ikke blir «stum»
         const stable = S.sit.stableFor(vent.time);

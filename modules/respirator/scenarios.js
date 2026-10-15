@@ -13,6 +13,7 @@
  */
 import { getProfile } from './profiles.js';
 import { CHILD_SITUATIONS } from './childCases.js';
+import { ADULT_VENT_SITUATIONS } from './adultCases/index.js';
 
 export const ACTIONS = {
   lytt: { label: 'Lytt på lungene', kind: 'undersok' },
@@ -35,6 +36,7 @@ export const ACTIONS = {
   hold: { label: 'Mål Pplateau (inspiratorisk hold)', kind: 'undersok' },
   juster: { label: 'Juster respiratoren', kind: 'tiltak' },
   kondens: { label: 'Tøm kondensvann fra slangen', kind: 'tiltak' },
+  mageleie: { label: 'Legg pasienten i mageleie', kind: 'tiltak' },
 };
 export const EXAM_IDS = ['lytt', 'se', 'krets', 'hold', 'blodgass'];
 /** Standardtekster for tiltak et scenario ikke nevner spesielt. */
@@ -45,6 +47,7 @@ export const DEFAULT_NEUTRAL = {
   smertelindring: 'Ingen tegn til smerte som årsak.',
   juster: 'Respiratorjustering alene løser ikke dette; årsaken ligger hos pasienten eller i kretsen.',
   kondens: 'Slangene er tørre. Ingen effekt.',
+  mageleie: 'Mageleie er ikke indisert her. Det anbefales ved moderat til alvorlig ARDS (PaO2/FiO2 under 20 kPa med PEEP ≥ 5) etter at respiratoren er optimalisert, i økter på minst 16 timer (ESICM 2023, PROSEVA).',
 };
 const DEFAULT_CLUES = {
   hold: 'Du måler Pplateau med inspiratorisk hold: se verdien på skjermen og sammenlign med Ppeak.',
@@ -70,7 +73,11 @@ const SETT = {
  *  fixes: { actionId: { text, recover: s (0 = umiddelbart) } }
  *  harmful: { actionId: text }   – tiltak som forverrer eller er farlige
  *  neutral: { actionId: text }   – tiltak uten effekt
- *  resolve(ctx): bool, ctx = { m (målinger), gas (spo2 0–1, paco2), settings, fixed (bool) }
+ *  resolve(ctx): bool, ctx = { m (målinger), gas (spo2 0–1, paco2), settings, fixed (bool), prone (bool), patient }
+ *  fixes.<id>.extra: { shuntAdd, compliance } legges på gradvis over extraRamp s (f.eks. mageleie); prone: true markerer mageleie
+ *  mechFn(ctx) → { compliance, resistance, resistanceExp: multiplikatorer; shuntAdd } oppå hendelsen, f.eks. PEEP-avhengig compliance
+ *  followUp: [actionId] – etter «Juster respiratoren» kommer et nytt valg med disse tiltakene (f.eks. mageleie)
+ *  followUpAfter: s før oppfølgingsvalget (standard 30), followUpText: spørsmålet
  */
 export const SITUATIONS = [
   {
@@ -420,6 +427,8 @@ export const SITUATIONS = [
   },
 ];
 SITUATIONS.push(...CHILD_SITUATIONS);
+// nye voksencaser med respiratorjustering får nummer etter barnecasene, så eksisterende casenumre står fast
+SITUATIONS.push(...ADULT_VENT_SITUATIONS);
 
 export function getSituation(id) { return SITUATIONS.find((s) => s.id === id) ?? null; }
 
@@ -448,10 +457,11 @@ export function createSituation(def, { rng = Math.random, hooks } = {}) {
   const st = {
     id: def.id, variantId: variant.id, status: 'baseline', tStart: null, tEvent: null, tFired: null, tFixed: null, tResolved: null,
     log: [], wrongActions: 0, examined: new Set(), baseline: null, fixed: false, ramp: null, resolveSince: null, tFull: null,
-    messages: [], pending: [], cueIndex: 0, flags: {}, factor: 0, taught: new Set(),
+    messages: [], pending: [], cueIndex: 0, flags: {}, factor: 0, taught: new Set(), prone: false, extra: null,
   };
   const vitalsBase = { ...VITALS_BASE, ...(def.vitalsBase ?? {}) };
-  const decision = { pending: null, availableAt: Infinity, examsDone: 0, tried: new Set(), done: false };
+  const decision = { pending: null, availableAt: Infinity, examsDone: 0, tried: new Set(), done: false, justert: false, phase: null };
+  const cx = (ctx) => ({ ...ctx, fixed: st.fixed, prone: st.prone });
   const DECISION_GAP = 4;   // s pause mellom valg så brukeren rekker å observere
   const CLUE_GAP = 3;       // s fra en avslørende undersøkelse til tiltaksvalget
   const FIRST_DECISION = 6; // s etter hendelsen før første valg (kortere hvis respiratoren alarmerer)
@@ -459,11 +469,17 @@ export function createSituation(def, { rng = Math.random, hooks } = {}) {
 
   function pickN(arr, n) { return shuffle(rng, arr).slice(0, n); }
   function buildDecision() {
+    if (decision.phase === 'followup') {
+      const main = variant.followUp.filter((id) => !decision.tried.has(id));
+      const others = Object.keys(ACTIONS).filter((id) => ACTIONS[id].kind === 'tiltak' && id !== 'juster' && !variant.followUp.includes(id) && !decision.tried.has(id));
+      const opts = [...main.slice(0, 2), ...pickN(others, 5 - Math.min(2, main.length))];
+      return { kind: 'oppfolging', text: variant.followUpText ?? 'Respiratoren er justert. Hva gjør du nå?', options: shuffle(rng, opts).slice(0, 5).map((id) => ({ id, label: ACTIONS[id].label })) };
+    }
     if (decision.examsDone < 2) {
       const ids = EXAM_IDS.filter((id) => !decision.tried.has(id));
       return { kind: 'undersok', text: decision.examsDone === 0 ? 'Noe skjer med pasienten. Hva undersøker du først?' : 'Hva undersøker du videre?', options: pickN(ids, 5).map((id) => ({ id, label: ACTIONS[id].label })), skippable: true };
     }
-    const fixes = Object.keys(variant.fixes).filter((id) => id !== 'juster' && !decision.tried.has(id));
+    const fixes = Object.keys(variant.fixes).filter((id) => id !== 'juster' && !decision.tried.has(id) && !(variant.followUp ?? []).includes(id));
     const others = Object.keys(ACTIONS).filter((id) => ACTIONS[id].kind === 'tiltak' && !variant.fixes[id] && !decision.tried.has(id) && id !== 'juster');
     const opts = [...fixes.slice(0, 2), ...pickN(others, 5 - Math.min(2, fixes.length) - 1)];
     if (!decision.tried.has('juster')) opts.push('juster');
@@ -479,14 +495,18 @@ export function createSituation(def, { rng = Math.random, hooks } = {}) {
 
   function applyEffect(e, scale = 1) {
     const b = st.baseline;
+    const x = st.extra ? Math.min(1, Math.max(0, st.extra.f)) : 0;
+    const ex = st.extra?.effect ?? {};
+    const mm = st.mech ?? {};
+    const effort = e.effort && scale >= 1 ? { ...b.patient.effort, ...e.effort } : { ...b.patient.effort };
     const p = {
-      compliance: b.patient.compliance * (1 + ((e.compliance ?? 1) - 1) * scale),
-      resistance: b.patient.resistance * (1 + ((e.resistance ?? 1) - 1) * scale),
-      resistanceExp: (b.patient.resistanceExp ?? b.patient.resistance) * (1 + ((e.resistanceExp ?? 1) - 1) * scale),
-      effort: e.effort && scale >= 1 ? { ...b.patient.effort, ...e.effort } : { ...b.patient.effort },
+      compliance: b.patient.compliance * (1 + ((e.compliance ?? 1) - 1) * scale) * (1 + ((ex.compliance ?? 1) - 1) * x) * (mm.compliance ?? 1),
+      resistance: b.patient.resistance * (1 + ((e.resistance ?? 1) - 1) * scale) * (mm.resistance ?? 1),
+      resistanceExp: (b.patient.resistanceExp ?? b.patient.resistance) * (1 + ((e.resistanceExp ?? 1) - 1) * scale) * (mm.resistanceExp ?? mm.resistance ?? 1),
+      effort: st.effortOverride ? { ...effort, ...st.effortOverride } : effort,
     };
     hooks.setPatient(p);
-    hooks.setGas({ shunt: b.gas.shunt + (e.shuntAdd ?? 0) * scale, petGap: 0.5 + ((e.petGap ?? 0.5) - 0.5) * scale });
+    hooks.setGas({ shunt: Math.max(0.02, b.gas.shunt + (e.shuntAdd ?? 0) * scale + (ex.shuntAdd ?? 0) * x + (mm.shuntAdd ?? 0)), petGap: 0.5 + ((e.petGap ?? 0.5) - 0.5) * scale });
     hooks.setDisconnected(!!e.disconnect && scale >= 1);
     hooks.setLeak?.((e.leak ?? 0) * scale);
     hooks.setTriggerNoise?.((e.triggerNoise ?? 0) * scale, e.noiseMode ?? 'burst');
@@ -516,6 +536,10 @@ export function createSituation(def, { rng = Math.random, hooks } = {}) {
         applyEffect(variant.effect, st.factor);
         if (x >= 1) { if (st.ramp.to >= 1) st.tFull = t; st.ramp = null; }
       }
+      if (st.extra && st.extra.f < 1) {
+        st.extra.f = Math.min(1, (t - st.extra.start) / Math.max(1, st.extra.duration));
+        applyEffect(variant.effect, st.factor);
+      }
       // skriptede meldinger (relativt til hendelsen)
       if (st.tFired !== null) {
         const cues = variant.cues ?? [];
@@ -541,17 +565,25 @@ export function createSituation(def, { rng = Math.random, hooks } = {}) {
       // pasientens egen pust som svarer på respiratorinnstillingene (f.eks. hviler ved nok støtte)
       if (st.status === 'active' && variant.effortFn && !st.ramp) {
         let e = null;
-        try { e = variant.effortFn({ ...ctx, fixed: st.fixed }); } catch { e = null; }
+        try { e = variant.effortFn(cx(ctx)); } catch { e = null; }
         const key = e ? JSON.stringify(e) : null;
-        if (e && key !== st.effortKey) { st.effortKey = key; hooks.setPatient({ effort: { ...hooks.getPatient().effort, ...e } }); }
+        if (e && key !== st.effortKey) { st.effortKey = key; st.effortOverride = e; hooks.setPatient({ effort: { ...hooks.getPatient().effort, ...e } }); }
+      }
+      // lungemekanikk som svarer på innstillingene (f.eks. rekruttering eller overdistensjon med PEEP, mageleie)
+      if (st.status === 'active' && variant.mechFn && !st.ramp) {
+        let r = null;
+        try { r = variant.mechFn(cx(ctx)); } catch { r = null; }
+        const key = JSON.stringify(r ?? {});
+        if (key !== st.mechKey) { st.mechKey = key; st.mech = r ?? {}; applyEffect(variant.effect, st.factor); }
       }
       // teori underveis: regler som utløses én gang når betingelsen er oppfylt (riktig) eller brutt (obs)
       if (st.status !== 'baseline' && variant.teach) {
         for (const [i, r] of variant.teach.entries()) {
           if (st.taught.has(i)) continue;
-          if (r.after === 'juster' && !decision.done) continue;
+          if (r.after === 'juster' && !decision.justert) continue;
+          if (r.after === 'mageleie' && !st.prone) continue;
           let hit = false;
-          try { hit = !!r.when({ ...ctx, fixed: st.fixed }); } catch { hit = false; }
+          try { hit = !!r.when(cx(ctx)); } catch { hit = false; }
           if (hit) { st.taught.add(i); say(t, 'teori', r.text, r.kind ?? 'riktig'); }
         }
       }
@@ -564,7 +596,7 @@ export function createSituation(def, { rng = Math.random, hooks } = {}) {
       if (st.status === 'active') {
         // løsningskriteriet teller først når hendelsen er fullt utviklet, eller brukeren har gjort tiltak/valgt å justere
         const gate = st.fixed || decision.done || (st.tFull !== null && t - st.tFull >= SETTLE_AFTER_EFFECT);
-        const ok = gate && variant.resolve({ ...ctx, fixed: st.fixed });
+        const ok = gate && variant.resolve(cx(ctx));
         if (ok) {
           if (st.resolveSince === null) st.resolveSince = t;
           if (t - st.resolveSince >= RESOLVE_HOLD) {
@@ -589,17 +621,22 @@ export function createSituation(def, { rng = Math.random, hooks } = {}) {
       let res;
       if (id === 'juster' && variant.ventFix && variant.fixes.juster) {
         res = this.act('juster', t);
-        decision.done = true;
+        decision.justert = true;
+        if (variant.followUp?.length) { decision.phase = 'followup'; decision.availableAt = t + (variant.followUpAfter ?? 30); }
+        else decision.done = true;
         say(t, 'kollega', variant.target ? `Juster respiratoren. Mål: ${variant.target}` : 'Juster respiratoren. Situasjonen regnes som løst når verdiene er innenfor målet.');
       } else if (id === 'juster') {
         res = { kind: 'noytral', text: variant.neutral.juster ?? 'Respiratorjustering løser ikke dette alene.' };
         st.wrongActions += 1;
         st.log.push({ t, actionId: 'juster', ...res });
+      } else if (kind === 'oppfolging') {
+        res = this.act(id, t);
+        if (res.kind === 'riktig' || res.kind === 'delvis') decision.done = true;
       } else {
         res = this.act(id, t);
         if (res.kind === 'riktig' && (!variant.fixes[id]?.partial || variant.fixes[id]?.recover >= 0)) decision.done = Object.keys(variant.fixes).length <= 1 || res.kind === 'riktig';
       }
-      decision.availableAt = t + DECISION_GAP;
+      if (!(id === 'juster' && decision.phase === 'followup' && kind !== 'oppfolging')) decision.availableAt = t + DECISION_GAP;
       // fant undersøkelsen årsaken (casen har en egen ledetråd for den), går vi rett til tiltak etter en kort pause
       if (kind === 'undersok' && variant.clues[id]) { decision.examsDone = 2; decision.availableAt = t + CLUE_GAP; }
       return res;
@@ -608,6 +645,8 @@ export function createSituation(def, { rng = Math.random, hooks } = {}) {
     stableFor(t) { return st.resolveSince === null ? null : t - st.resolveSince; },
     get resolveHold() { return RESOLVE_HOLD; },
     get decisionDone() { return decision.done; },
+    get prone() { return st.prone; },
+    get justert() { return decision.justert; },
     /** Hopp over videre undersøkelser og gå til tiltak. */
     skipToActions(t) { decision.examsDone = 2; decision.pending = null; decision.availableAt = t + 1; },
     /** Hopp over ventepausen før neste valg. */
@@ -639,7 +678,13 @@ export function createSituation(def, { rng = Math.random, hooks } = {}) {
         st.wrongActions += 1;
       } else if (variant.fixes[actionId]) {
         const f = variant.fixes[actionId];
-        if (f.partial) {
+        if (f.extra) {
+          // gradvis effekt som legges oppå hendelsen (f.eks. mageleie: tiden komprimeres)
+          st.extra = { effect: f.extra, start: t, duration: f.extraRamp ?? 60, f: 0 };
+          if (f.prone) st.prone = true;
+          if (f.recover >= 0) { st.fixed = true; st.tFixed = st.tFixed ?? t; }
+          res = { kind: 'riktig', text: f.text };
+        } else if (f.partial) {
           // tom «partial» (f.eks. «Juster respiratoren»): pasienten endres ikke, brukeren må justere selv
           if (Object.keys(f.partial).length) applyEffect({ ...variant.effect, ...f.partial }, 1);
           if (f.partial.effort) hooks.setPatient({ effort: f.partial.effort });

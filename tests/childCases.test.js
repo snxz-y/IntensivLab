@@ -1,42 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { SITUATIONS, createSituation, gasForProfile } from '../modules/respirator/scenarios.js';
+import { rig } from './helpers/caseRig.js';
 import { CHILD_SITUATIONS } from '../modules/respirator/childCases.js';
-import { createVentilator } from '../core/sim/ventilator.js';
-import { createGasModel } from '../core/sim/gasModel.js';
-import { getProfile } from '../modules/respirator/profiles.js';
 import { idealBodyWeightHamilton, idealBodyWeightChild } from '../core/physiology/respiratory.js';
-
-/** Samme oppsett som i UI-et: VTI til gassmodellen, startgass, pasient i ctx. */
-function rig(id) {
-  const def = SITUATIONS.find((s) => s.id === id);
-  const patient = { ...structuredClone(getProfile(def.profileId).patient), ...structuredClone(def.patient ?? {}) };
-  const vent = createVentilator({ settings: structuredClone(def.settings), patient });
-  const gas = createGasModel({ petGap: 0.5, ...(def.gas ?? gasForProfile(def.profileId)) });
-  const hooks = {
-    getPatient: () => vent.patient, setPatient: (p) => vent.setPatient(p), getGas: () => ({ ...gas.params }), setGas: (g) => gas.setParams(g),
-    setDisconnected: (v) => vent.setDisconnected(v), setLeak: (f) => vent.setLeak(f), setTriggerNoise: (n, md) => vent.setTriggerNoise(n, md),
-    setArtifacts: (a) => vent.setArtifacts(a), cough: () => vent.cough(),
-  };
-  const upd = () => { const m = vent.measurements; gas.setVentilation({ vtMl: vent.disconnected ? 0 : (m.vti ?? m.vte ?? 0), rate: m.fTotal ?? 0, fio2: vent.settings.fio2 / 100, peep: m.peepTotal ?? vent.settings.peep, ibwKg: m.ibw }); };
-  vent.run(20); upd(); gas.settle();
-  if (def.gasStart) Object.assign(gas.state, def.gasStart);
-  const sit = createSituation(def, { rng: () => 0.5, hooks });
-  const msgs = [];
-  sit.start(vent.time);
-  const ctx = () => ({ m: vent.measurements, gas: gas.state, settings: vent.settings, pmax: vent.settings.pmax, disconnected: vent.disconnected, patient: vent.patient });
-  const run = (sec) => { for (let i = 0; i < sec; i++) { vent.run(1); upd(); gas.step(1); sit.tick(vent.time, ctx()); msgs.push(...sit.drain()); } };
-  const toJuster = () => {
-    for (let i = 0; i < 120 && !sit.decision; i++) run(1);
-    sit.skipToActions(vent.time); run(2);
-    assert.ok(sit.decision && sit.decision.kind === 'tiltak', `${id}: tiltaksvalg`);
-    assert.ok(sit.decision.options.some((o) => o.id === 'juster'), `${id}: «Juster respiratoren» er et valg`);
-    sit.choose('juster', vent.time);
-  };
-  const until = (n) => { for (let i = 0; i < n && sit.state.status !== 'resolved'; i++) run(1); return sit.state.status === 'resolved'; };
-  const theory = (kind) => msgs.filter((x) => x.who === 'teori' && (!kind || x.kind === kind));
-  return { def, vent, gas, sit, run, toJuster, until, theory, ctx };
-}
 
 /** For hver case: hva som skjer, en feil justering som ikke skal løse, og riktig justering. */
 const PLANS = {
