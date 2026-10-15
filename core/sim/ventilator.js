@@ -298,7 +298,8 @@ export function createVentilator({ settings = {}, patient = {}, dt = 0.005 } = {
     m.pmean = b.pawInt / b.tcycle;
     m.peep = b.peepSet;
     m.peepTotal = peepTotal;
-    m.autoPeep = Math.max(0, peepTotal - b.peepSet);
+    // mot PEEP-en som gjaldt i ekspirasjonen (endres PEEP midt i en pust, er det ikke AutoPEEP)
+    m.autoPeep = Math.max(0, peepTotal - s.peep);
     m.vti = b.vti;
     m.vte = b.vte * (1 - leak);
     m.ti = b.ti;

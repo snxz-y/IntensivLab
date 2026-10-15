@@ -75,7 +75,7 @@ const SETT = {
  *  neutral: { actionId: text }   – tiltak uten effekt
  *  resolve(ctx): bool, ctx = { m (målinger), gas (spo2 0–1, paco2), settings, fixed (bool), prone (bool), patient }
  *  fixes.<id>.extra: { shuntAdd, compliance } legges på gradvis over extraRamp s (f.eks. mageleie); prone: true markerer mageleie
- *  mechFn(ctx) → { compliance, resistance, resistanceExp: multiplikatorer; shuntAdd } oppå hendelsen, f.eks. PEEP-avhengig compliance
+ *  mechFn(ctx) → { compliance, resistance, resistanceExp: multiplikatorer; shuntAdd; leak (andel, legges til) } oppå hendelsen, f.eks. PEEP-avhengig compliance
  *  followUp: [actionId] – etter «Juster respiratoren» kommer et nytt valg med disse tiltakene (f.eks. mageleie)
  *  followUpAfter: s før oppfølgingsvalget (standard 30), followUpText: spørsmålet
  */
@@ -508,7 +508,7 @@ export function createSituation(def, { rng = Math.random, hooks } = {}) {
     hooks.setPatient(p);
     hooks.setGas({ shunt: Math.max(0.02, b.gas.shunt + (e.shuntAdd ?? 0) * scale + (ex.shuntAdd ?? 0) * x + (mm.shuntAdd ?? 0)), petGap: 0.5 + ((e.petGap ?? 0.5) - 0.5) * scale });
     hooks.setDisconnected(!!e.disconnect && scale >= 1);
-    hooks.setLeak?.((e.leak ?? 0) * scale);
+    hooks.setLeak?.((e.leak ?? 0) * scale + (mm.leak ?? 0));
     hooks.setTriggerNoise?.((e.triggerNoise ?? 0) * scale, e.noiseMode ?? 'burst');
     hooks.setArtifacts?.({ secretions: (variant.sounds?.secretions ?? 0) * scale });
   }
